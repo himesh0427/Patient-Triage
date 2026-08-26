@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import lightgbm as lgb
 from sklearn.metrics import classification_report, cohen_kappa_score, confusion_matrix, ConfusionMatrixDisplay
 import os
@@ -29,14 +30,22 @@ print(y_train.value_counts().sort_index())
 X_test = test_df.drop(columns=["esi"])
 y_test = test_df["esi"].astype(int)
 
-# Train LightGBM multiclass model (5 classes)
+# Create sample weights for ordinal regression approach
+weight_map = {1: 2.5, 2: 1.0, 3: 0.8, 4: 1.0, 5: 1.5}
+sample_weights = y_train.map(weight_map)
+
+# Train LightGBM regression model for ordinal classification
 print("Initializing model...")
-model = lgb.LGBMClassifier(
-    objective="multiclass",
-    num_class=5,
-    class_weight="balanced",
-    n_estimators=500,
+model = lgb.LGBMRegressor(
+    objective="regression",
+    metric="rmse",
+    n_estimators=1000,
     learning_rate=0.05,
+    num_leaves=63,
+    min_child_samples=120,    # Increased to prevent overfitting on ESI 1/5
+    subsample=0.8,
+    colsample_bytree=0.8,
+    max_bin=255,              # Added for explicit regression granularity
     random_state=42,
     verbose=-1
 )
@@ -46,7 +55,6 @@ def tqdm_callback(pbar):
     def callback(env):
         pbar.update(1)
         if env.evaluation_result_list:
-            # Assuming first metric is the one we care about
             metric_name = env.evaluation_result_list[0][1]
             metric_val = env.evaluation_result_list[0][2]
             pbar.set_postfix({metric_name: f"{metric_val:.4f}"})
@@ -55,13 +63,14 @@ def tqdm_callback(pbar):
 print("Starting training...")
 start_time = time.time()
 
-with tqdm(total=500, desc="Training Progress") as pbar:
+with tqdm(total=1000, desc="Training Progress") as pbar:
     model.fit(
         X_train, y_train,
+        sample_weight=sample_weights,
         eval_set=[(X_test, y_test)],
-        eval_metric="multi_logloss",
+        eval_metric="rmse",
         callbacks=[
-            lgb.early_stopping(50, verbose=False),
+            lgb.early_stopping(100, verbose=False),
             tqdm_callback(pbar)
         ]
     )
@@ -71,7 +80,9 @@ print(f"\nTraining completed in {end_time - start_time:.2f} seconds.")
 
 # Predictions
 print("Evaluating model...")
-y_pred = model.predict(X_test)
+# Predict and round to nearest integer, bound between 1 and 5
+y_pred_continuous = model.predict(X_test)
+y_pred = np.clip(np.round(y_pred_continuous), 1, 5).astype(int)
 
 # Evaluation
 report = classification_report(y_test, y_pred)
@@ -86,7 +97,7 @@ cm = confusion_matrix(y_test, y_pred)
 print("\nConfusion Matrix:")
 print(cm)
 
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=model.classes_)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[1, 2, 3, 4, 5])
 fig, ax = plt.subplots(figsize=(8, 6))
 disp.plot(cmap="Blues", ax=ax)
 plt.title("Confusion Matrix")

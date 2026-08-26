@@ -1,13 +1,22 @@
+"""
+Improved dataset generation for ESI prediction model.
+Strategy: Capped, imbalance-conscious sampling with feature engineering.
+"""
 import pandas as pd
+import numpy as np
 from datasets import load_dataset
 from sklearn.model_selection import train_test_split
 import os
 
-# Load dataset
+# Load full dataset
+print("Loading full dataset from Hugging Face...")
 ds = load_dataset("kondratevakate/hospital-triage-and-patient-history-data", split="train")
 df = ds.to_pandas()
+print(f"Full dataset: {df.shape[0]} rows, {df.shape[1]} columns")
 
+# ──────────────────────────────────────────────
 # 1. Select triage-relevant columns
+# ──────────────────────────────────────────────
 vital_cols = [
     "triage_vital_hr",
     "triage_vital_sbp",
@@ -21,31 +30,87 @@ cc_cols = [col for col in df.columns if col.startswith("cc_")]
 selected_cols = ["age", "gender", "esi"] + vital_cols + cc_cols
 df = df[selected_cols]
 
-# 2. Drop rows where essential identifiers are missing
-#    (we keep rows with missing vitals – LightGBM will handle them)
+# ──────────────────────────────────────────────
+# 2. Drop rows where essential fields are missing
+# ──────────────────────────────────────────────
 essential_cols = ["age", "gender", "esi"]
 df = df.dropna(subset=essential_cols)
+print(f"After dropping missing age/gender/esi: {len(df)} rows")
 
-# 3. Sample 50k rows (after dropping essential missing)
-if len(df) > 50000:
-    df = df.sample(n=50000, random_state=42)
+# ──────────────────────────────────────────────
+# 3. Drop sparse cc_* columns (< 500 occurrences)
+# ──────────────────────────────────────────────
+sparse_cc = [col for col in cc_cols if (df[col] == 1).sum() < 500]
+df = df.drop(columns=sparse_cc)
+cc_cols = [col for col in cc_cols if col not in sparse_cc]
+print(f"Dropped {len(sparse_cc)} sparse cc_* columns, kept {len(cc_cols)}")
 
+# ──────────────────────────────────────────────
 # 4. Encode gender: Male -> 1, Female -> 0, other -> 2
+# ──────────────────────────────────────────────
 df["gender"] = df["gender"].map({"Male": 1, "Female": 0}).fillna(2).astype(int)
 
-# 5. Fill missing chief complaints with 0 (absence = not reported)
+# ──────────────────────────────────────────────
+# 5. Fill missing chief complaints with 0
+# ──────────────────────────────────────────────
 df[cc_cols] = df[cc_cols].fillna(0)
 
-# 6. Split into train/test (stratified by ESI)
+# ──────────────────────────────────────────────
+# 6. Feature engineering
+# ──────────────────────────────────────────────
+# Number of chief complaints reported
+df["n_chief_complaints"] = df[cc_cols].sum(axis=1).astype(int)
+
+# Whether vitals were recorded at all (strong signal for ESI 1)
+df["has_vitals"] = df[vital_cols].notna().any(axis=1).astype(int)
+
+# Number of vitals recorded (0-6)
+df["n_vitals_recorded"] = df[vital_cols].notna().sum(axis=1).astype(int)
+
+print(f"\nEngineered features added: n_chief_complaints, has_vitals, n_vitals_recorded")
+
+# ──────────────────────────────────────────────
+# 7. Capped, imbalance-conscious sampling
+#    - ALL ESI 1 (~5,271) and ALL ESI 5 (~27,992)
+#    - ESI 2, 3, 4 capped at 50,000 each
+#    → ~183K total
+# ──────────────────────────────────────────────
+df["esi"] = df["esi"].astype(int)
+
+caps = {1: None, 2: 50000, 3: 50000, 4: 50000, 5: None}  # None = take all
+
+sampled_dfs = []
+for esi_level, cap in caps.items():
+    esi_subset = df[df["esi"] == esi_level]
+    if cap is not None and len(esi_subset) > cap:
+        esi_subset = esi_subset.sample(n=cap, random_state=42)
+    sampled_dfs.append(esi_subset)
+    print(f"ESI {esi_level}: {len(esi_subset)} rows {'(ALL)' if cap is None else f'(capped at {cap})'}")
+
+df_sampled = pd.concat(sampled_dfs, ignore_index=True)
+print(f"\nTotal sampled: {len(df_sampled)} rows")
+
+# ──────────────────────────────────────────────
+# 8. Split into train/test (stratified by ESI)
+# ──────────────────────────────────────────────
 train_df, test_df = train_test_split(
-    df, test_size=0.2, random_state=42, stratify=df["esi"]
+    df_sampled, test_size=0.2, random_state=42, stratify=df_sampled["esi"]
 )
 
-# 7. Save as CSV (missing vitals remain as empty cells)
+# ──────────────────────────────────────────────
+# 9. Save as CSV
+# ──────────────────────────────────────────────
 os.makedirs("dataset", exist_ok=True)
 train_df.to_csv("dataset/train.csv", index=False)
 test_df.to_csv("dataset/test.csv", index=False)
 
-print(f"Train shape: {train_df.shape}")
+print(f"\nTrain shape: {train_df.shape}")
 print(f"Test shape: {test_df.shape}")
-print("Saved train.csv and test.csv in dataset/ folder.")
+
+print("\nTrain ESI distribution:")
+print(train_df["esi"].value_counts().sort_index())
+
+print("\nTest ESI distribution:")
+print(test_df["esi"].value_counts().sort_index())
+
+print("\nSaved train.csv and test.csv in dataset/ folder.")
