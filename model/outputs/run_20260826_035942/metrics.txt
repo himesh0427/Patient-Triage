@@ -1,0 +1,17 @@
+Training completed in 15.59 seconds.
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           1       0.14      0.67      0.24        93
+           2       0.67      0.64      0.66      2932
+           3       0.71      0.54      0.61      4225
+           4       0.57      0.62      0.60      2236
+           5       0.24      0.53      0.33       514
+
+    accuracy                           0.59     10000
+   macro avg       0.47      0.60      0.49     10000
+weighted avg       0.64      0.59      0.60     10000
+
+
+Quadratic Weighted Kappa: 0.594

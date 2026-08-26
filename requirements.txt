@@ -1,0 +1,10 @@
+pandas
+datasets
+scikit-learn
+lightgbm
+matplotlib
+joblib
+tqdm
+fastapi
+uvicorn[standard]
+pydantic
