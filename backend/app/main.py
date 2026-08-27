@@ -2,9 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
 from .routers import triage, override
+from .routers import frontend_api
+from . import models_v2  # noqa: F401 — import so v2 tables are registered with Base
 from .config import settings
 
-# Create all database tables on startup
+# Create all database tables on startup (includes both v1 and v2 tables)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -21,8 +23,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Original API routers (backward compatibility)
 app.include_router(triage.router)
 app.include_router(override.router)
+
+# New frontend-compatible API router
+app.include_router(frontend_api.router)
 
 @app.get("/")
 def root():
