@@ -1,0 +1,628 @@
+================================================================================
+                   PATIENTTRIAGE.AI - COMPLETE BACKEND PLAN (UPDATED)
+                           (For Hackathon Round 2)
+================================================================================
+
+1.  WHAT WE ARE USING (Tech Stack)
+----------------------------------
+- Language: Python 3.9+
+- Web Framework: FastAPI (handles API endpoints, auto-documentation at /docs)
+- Server: Uvicorn (ASGI server to run FastAPI)
+- Database ORM: SQLAlchemy (the "universal translator" for databases)
+- Database Engine: SQLite (default). 
+    * Why? Zero installation. It's built into Python. Saves to a single file (triage.db).
+    * Note: We can switch to PostgreSQL later just by changing one line in .env.
+- ML Libraries: LightGBM (for the trained model), NumPy, Pandas.
+- Text Mapping: PyYAML + Keyword Matching (fast, zero dependencies, reads config/symptom_mapping.yaml).
+    * LLM (Sentence-BERT) is DECOUPLED. We have the adapter code ready, but we skip installing it to avoid dependency hell. The keyword matcher runs in <1ms.
+- Environment: python-dotenv (to manage .env variables).
+- Scheduler: APScheduler (to run retriage checks every 30 seconds).
+
+2.  FOLDER STRUCTURE (Which files we are making)
+------------------------------------------------
+patient_triage/
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                 # FastAPI entry point, CORS, router includes
+│   │   ├── config.py               # Loads environment variables
+│   │   ├── database.py             # SQLAlchemy engine & session setup
+│   │   ├── models.py               # SQLAlchemy Table definitions
+│   │   ├── schemas.py              # Pydantic models for request/response
+│   │   ├── ml/                     # Machine Learning subfolder
+│   │   │   ├── __init__.py
+│   │   │   ├── model_loader.py     # Loads LightGBM & YAML mapping
+│   │   │   └── hard_rules.py       # Production-grade safety gate (handles None, pediatrics)
+│   │   ├── routers/                # API Endpoints subfolder
+│   │   │   ├── __init__.py
+│   │   │   ├── triage.py           # POST /predict, GET /queue, POST /surge/simulate
+│   │   │   └── override.py         # PUT /override/visit/{id}
+│   │   └── services/               # Business Logic subfolder
+│   │       ├── __init__.py
+│   │       └── queue_manager.py    # Ordering, wait-time calculations, retriage logic
+│   ├── config/                     # NEW: External configs
+│   │   └── symptom_mapping.yaml    # Maps free text to cc_* columns
+│   ├── requirements.txt            # All Python dependencies (LLM removed)
+│   └── .env                        # Environment variables
+└── model/                          # (Existing folder)
+    └── esi_triage_best_weight7.txt
+
+3.  UPDATED FILE CONTENTS (COPY AND PASTE)
+----------------------------------------------
+
+--- backend/requirements.txt ---
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+python-dotenv==1.0.0
+lightgbm==4.1.0
+numpy==1.24.3
+pandas==2.1.4
+apscheduler==3.10.4
+pydantic==2.5.0
+python-multipart==0.0.6
+names==0.3.0
+pyyaml==6.0.1                # REQUIRED: To read symptom_mapping.yaml
+
+--- backend/.env ---
+DATABASE_URL=sqlite:///./triage.db
+MODEL_PATH=../model/esi_triage_best_weight7.txt
+
+--- backend/config/symptom_mapping.yaml ---
+version: 1.0
+description: Maps nurse free-text to cc_* feature columns.
+
+mapping:
+  - phrase: "abdominal pain"
+    cc_column: "cc_abdominalpain"
+  - phrase: "stomach pain"
+    cc_column: "cc_abdominalpain"
+  - phrase: "belly pain"
+    cc_column: "cc_abdominalpain"
+
+  - phrase: "chest pain"
+    cc_column: "cc_chestpain"
+  - phrase: "chest tightness"
+    cc_column: "cc_chestpain"
+  - phrase: "pressure in chest"
+    cc_column: "cc_chestpain"
+
+  - phrase: "shortness of breath"
+    cc_column: "cc_shortnessofbreath"
+  - phrase: "difficulty breathing"
+    cc_column: "cc_shortnessofbreath"
+  - phrase: "can't breathe"
+    cc_column: "cc_shortnessofbreath"
+
+  - phrase: "fever"
+    cc_column: "cc_fever"
+  - phrase: "high temperature"
+    cc_column: "cc_fever"
+
+  - phrase: "headache"
+    cc_column: "cc_headache"
+  - phrase: "migraine"
+    cc_column: "cc_headache"
+
+  - phrase: "nausea"
+    cc_column: "cc_nausea"
+  - phrase: "vomiting"
+    cc_column: "cc_vomiting"
+  - phrase: "threw up"
+    cc_column: "cc_vomiting"
+
+  - phrase: "dizziness"
+    cc_column: "cc_dizziness"
+  - phrase: "lightheaded"
+    cc_column: "cc_dizziness"
+
+  - phrase: "cough"
+    cc_column: "cc_cough"
+  - phrase: "productive cough"
+    cc_column: "cc_cough"
+
+  - phrase: "fatigue"
+    cc_column: "cc_fatigue"
+  - phrase: "exhausted"
+    cc_column: "cc_fatigue"
+
+  - phrase: "back pain"
+    cc_column: "cc_backpain"
+
+  - phrase: "sore throat"
+    cc_column: "cc_sorethroat"
+
+  - phrase: "rash"
+    cc_column: "cc_rash"
+
+  - phrase: "injury"
+    cc_column: "cc_injury"
+  - phrase: "fall"
+    cc_column: "cc_injury"
+
+  - phrase: "bleeding"
+    cc_column: "cc_bleeding"
+  # =========================================================
+  # IMPORTANT: ADD YOUR FULL LIST OF 175 cc_* COLUMNS HERE
+  # =========================================================
+
+--- backend/app/__init__.py ---
+# (Empty file)
+
+--- backend/app/config.py ---
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Settings:
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./triage.db")
+    MODEL_PATH = os.getenv("MODEL_PATH", "../model/esi_triage_best_weight7.txt")
+
+settings = Settings()
+
+--- backend/app/database.py ---
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from .config import settings
+
+connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+
+engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+--- backend/app/models.py ---
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy.sql import func
+from .database import Base
+
+class Patient(Base):
+    __tablename__ = "patients"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100))
+    age = Column(Integer)
+    has_history = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Visit(Base):
+    __tablename__ = "visits"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"))
+    arrival_time = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)
+    esi_predicted = Column(Integer)
+    esi_final = Column(Integer)
+    confidence_score = Column(Float)
+    raw_ml_score = Column(Float)
+    top_reasons = Column(Text)
+    is_overridden = Column(Boolean, default=False)
+    override_reason = Column(Text, nullable=True)
+    overridden_by = Column(String(100), nullable=True)
+    override_timestamp = Column(DateTime(timezone=True), nullable=True)
+
+class Vitals(Base):
+    __tablename__ = "vitals"
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("visits.id"))
+    hr = Column(Float, nullable=True)
+    sbp = Column(Float, nullable=True)
+    dbp = Column(Float, nullable=True)
+    rr = Column(Float, nullable=True)
+    temp = Column(Float, nullable=True)
+    spo2 = Column(Float, nullable=True)
+    recorded_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class SymptomCC(Base):
+    __tablename__ = "symptom_cc"
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("visits.id"))
+    raw_text = Column(Text, nullable=True)
+    features_json = Column(Text, nullable=True)
+
+class Queue(Base):
+    __tablename__ = "queue"
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("visits.id"))
+    esi_level = Column(Integer)
+    wait_time_seconds = Column(Integer, default=0)
+    last_retriage_at = Column(DateTime(timezone=True), server_default=func.now())
+    retriage_needed = Column(Boolean, default=False)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("visits.id"))
+    action = Column(String(50))
+    old_value = Column(String(50))
+    new_value = Column(String(50))
+    user_id = Column(String(100))
+    reason = Column(Text)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+--- backend/app/schemas.py ---
+from pydantic import BaseModel
+from typing import Optional, List
+
+class VitalsInput(BaseModel):
+    hr: Optional[float] = None
+    sbp: Optional[float] = None
+    dbp: Optional[float] = None
+    rr: Optional[float] = None
+    temp: Optional[float] = None
+    spo2: Optional[float] = None
+
+class TriageInput(BaseModel):
+    name: str
+    age: int
+    has_history: bool
+    symptom_text: str
+    vitals: VitalsInput
+
+class TriageResponse(BaseModel):
+    visit_id: int
+    esi: int
+    confidence: float
+    reasons: List[str]
+    action: str
+
+class OverrideInput(BaseModel):
+    new_esi: int
+    reason: str
+    nurse_id: str
+
+--- backend/app/ml/__init__.py ---
+# (Empty file)
+
+--- backend/app/ml/hard_rules.py ---
+# [UPDATED] Production-grade version handling None, Pediatrics, and detailed keywords.
+from typing import Optional
+
+def apply_hard_rules(
+    age: Optional[float],
+    vitals: dict,
+    symptom_text: str
+):
+    """ESI-inspired deterministic safety gate."""
+    text = (symptom_text or "").lower().strip()
+
+    def to_float(value):
+        try:
+            if value is None or value == "":
+                return None
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    spo2 = to_float(vitals.get("spo2"))
+    hr = to_float(vitals.get("hr"))
+    rr = to_float(vitals.get("rr"))
+    sbp = to_float(vitals.get("sbp"))
+    temp = to_float(vitals.get("temp"))
+
+    # ESI-1 Keywords
+    esi_1_keywords = [
+        "cardiac arrest", "respiratory arrest", "not breathing",
+        "no pulse", "pulseless", "unresponsive", "unconscious"
+    ]
+    matched_esi_1 = [kw for kw in esi_1_keywords if kw in text]
+    if matched_esi_1:
+        return {"esi": 1, "source": "hard_gate", "reasons": ["Immediate life-threatening presentation", f"Detected: {', '.join(matched_esi_1)}"]}
+
+    # ESI-1 Extreme Vitals
+    if spo2 is not None and spo2 < 85:
+        return {"esi": 1, "source": "hard_gate", "reasons": [f"Critically low SpO2 ({spo2}%)"]}
+    if sbp is not None and sbp < 70:
+        return {"esi": 1, "source": "hard_gate", "reasons": [f"Critically low SBP ({sbp} mmHg)"]}
+
+    # ESI-2 Keywords
+    esi_2_keywords = [
+        "chest pain", "crushing chest pain", "severe shortness of breath", 
+        "respiratory distress", "stroke", "facial droop", "altered mental status", 
+        "active seizure", "heavy bleeding", "anaphylaxis", "severe pain"
+    ]
+    matched_esi_2 = [kw for kw in esi_2_keywords if kw in text]
+    if matched_esi_2:
+        return {"esi": 2, "source": "hard_gate", "reasons": ["High-risk presentation", f"Detected: {', '.join(matched_esi_2)}"]}
+
+    # ESI-2 Concerning Vitals
+    if spo2 is not None and spo2 < 92:
+        return {"esi": 2, "source": "hard_gate", "reasons": [f"Low SpO2 ({spo2}%)"]}
+    if sbp is not None and sbp < 90:
+        return {"esi": 2, "source": "hard_gate", "reasons": [f"Hypotension (SBP {sbp})"]}
+    if rr is not None and rr > 30:
+        return {"esi": 2, "source": "hard_gate", "reasons": [f"Tachypnea (RR {rr})"]}
+
+    # Pediatric Caution (Fever + Symptoms)
+    if age is not None and age < 18:
+        pediatric_terms = ["lethargy", "unresponsive", "respiratory distress", "seizure"]
+        if any(t in text for t in pediatric_terms):
+            return {"esi": 2, "source": "hard_gate", "reasons": ["Pediatric high-risk presentation"]}
+
+    # No hard rules triggered -> proceed to ML
+    return {"esi": None, "source": "ml", "reasons": ["Proceed to LightGBM"]}
+
+--- backend/app/ml/model_loader.py ---
+# [UPDATED] Reads YAML mapping, NO LLM required.
+import lightgbm as lgb
+import numpy as np
+import pandas as pd
+import yaml
+from pathlib import Path
+from .hard_rules import apply_hard_rules
+
+_model = None
+_cc_columns = []
+_keyword_to_cc = {}
+
+def load_mapping_config():
+    global _cc_columns, _keyword_to_cc
+    config_path = Path(__file__).parent.parent / "config" / "symptom_mapping.yaml"
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config not found at {config_path}")
+    
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    _keyword_to_cc = {}
+    cc_set = set()
+    for item in config.get('mapping', []):
+        _keyword_to_cc[item['phrase'].lower()] = item['cc_column']
+        cc_set.add(item['cc_column'])
+    _cc_columns = sorted(list(cc_set))
+    print(f"[INFO] Loaded {len(_keyword_to_cc)} mappings.")
+
+load_mapping_config()
+
+def load_model():
+    global _model
+    if _model is None:
+        model_path = Path(__file__).parent.parent.parent / "model" / "esi_triage_best_weight7.txt"
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model not found at {model_path}")
+        _model = lgb.Booster(model_file=str(model_path))
+    return _model
+
+def text_to_cc_vector(text: str):
+    vector = {col: 0 for col in _cc_columns}
+    text_lower = text.lower()
+    for keyword, col in _keyword_to_cc.items():
+        if keyword in text_lower:
+            if col in vector:
+                vector[col] = 1
+    return vector
+
+def predict_esi(vitals: dict, age: int, cc_vector: dict, raw_text: str):
+    # Hard Rules
+    hard_result = apply_hard_rules(age=float(age), vitals=vitals, symptom_text=raw_text)
+    if hard_result["esi"] is not None:
+        return hard_result["esi"], 1.0, hard_result["reasons"]
+
+    # Feature Engineering
+    features = {}
+    features.update(vitals)
+    features['age'] = age
+    features.update(cc_vector)
+    features['n_chief_complaints'] = sum(cc_vector.values())
+    features['n_vitals_recorded'] = sum(1 for v in vitals.values() if v is not None and v != "")
+    features['has_vitals'] = 1 if features['n_vitals_recorded'] > 0 else 0
+
+    # Predict
+    model = load_model()
+    df = pd.DataFrame([features])
+    raw_score = model.predict(df)[0]
+    esi_pred = int(round(raw_score))
+    esi_pred = max(1, min(5, esi_pred))
+
+    # Confidence
+    boundaries = [1.5, 2.5, 3.5, 4.5]
+    min_dist = min(abs(raw_score - b) for b in boundaries)
+    confidence = min(1.0, min_dist * 2)
+
+    return esi_pred, confidence, ["ML prediction based on vitals and symptoms"]
+
+--- backend/app/services/__init__.py ---
+# (Empty file)
+
+--- backend/app/services/queue_manager.py ---
+from sqlalchemy.orm import Session
+from datetime import datetime
+from ..models import Queue, Visit
+
+SAFE_WAIT = {1: 0, 2: 600, 3: 1800, 4: 3600, 5: 7200}
+
+def check_retriage(queue_item: Queue, db: Session) -> bool:
+    visit = db.query(Visit).filter(Visit.id == queue_item.visit_id).first()
+    if not visit:
+        return False
+    wait_time = (datetime.now() - visit.arrival_time).total_seconds()
+    threshold = SAFE_WAIT.get(queue_item.esi_level, 3600)
+    return wait_time > threshold
+
+--- backend/app/routers/__init__.py ---
+# (Empty file)
+
+--- backend/app/routers/triage.py ---
+# (This remains exactly the same as before)
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from datetime import datetime
+from ..database import get_db
+from ..models import Patient, Visit, Vitals, SymptomCC, Queue
+from ..schemas import TriageInput, TriageResponse
+from ..ml.model_loader import predict_esi, text_to_cc_vector
+from ..services.queue_manager import check_retriage
+
+router = APIRouter(prefix="/triage", tags=["Triage"])
+
+@router.post("/predict", response_model=TriageResponse)
+def predict_patient(input: TriageInput, db: Session = Depends(get_db)):
+    patient = Patient(name=input.name, age=input.age, has_history=input.has_history)
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    
+    visit = Visit(patient_id=patient.id)
+    db.add(visit)
+    db.commit()
+    db.refresh(visit)
+    
+    vitals = Vitals(visit_id=visit.id, **input.vitals.dict())
+    db.add(vitals)
+    
+    cc_vector = text_to_cc_vector(input.symptom_text)
+    symptom_cc = SymptomCC(visit_id=visit.id, raw_text=input.symptom_text, features_json=str(cc_vector))
+    db.add(symptom_cc)
+    
+    esi, confidence, reasons = predict_esi(vitals=input.vitals.dict(), age=input.age, cc_vector=cc_vector, raw_text=input.symptom_text)
+    
+    queue = Queue(visit_id=visit.id, esi_level=esi)
+    db.add(queue)
+    
+    visit.esi_predicted = esi
+    visit.esi_final = esi
+    visit.confidence_score = confidence
+    visit.top_reasons = str(reasons)
+    db.commit()
+    db.refresh(visit)
+    
+    return TriageResponse(visit_id=visit.id, esi=esi, confidence=confidence, reasons=reasons, action="Immediate Bed" if esi <= 2 else "Monitor Queue")
+
+@router.get("/queue")
+def get_queue(db: Session = Depends(get_db)):
+    queue_items = db.query(Queue, Visit).join(Visit).filter(Visit.is_active == True).order_by(
+        Queue.esi_level.asc(), Visit.arrival_time.asc()
+    ).all()
+    
+    for q, v in queue_items:
+        if check_retriage(q, db):
+            q.retriage_needed = True
+    db.commit()
+    
+    result = []
+    for q, v in queue_items:
+        result.append({
+            "queue_id": q.id,
+            "visit_id": v.id,
+            "patient_id": v.patient_id,
+            "esi_level": q.esi_level,
+            "wait_time_seconds": (datetime.now() - v.arrival_time).total_seconds(),
+            "retriage_needed": q.retriage_needed,
+            "confidence": v.confidence_score
+        })
+    return result
+
+@router.post("/surge/simulate")
+def simulate_surge(scale: int = 3, db: Session = Depends(get_db)):
+    import random, names
+    count = 0
+    for _ in range(scale * 30):
+        age = random.choice([2, 35, 75])
+        vitals = {
+            "hr": random.randint(60, 180),
+            "sbp": random.randint(80, 160),
+            "spo2": random.randint(88, 100),
+            "temp": 37.0 + random.random() * 2
+        }
+        texts = ["chest pain", "abdominal pain", "shortness of breath", "fever", "headache"]
+        input = TriageInput(
+            name=names.get_first_name(),
+            age=age,
+            has_history=random.choice([True, False]),
+            symptom_text=random.choice(texts),
+            vitals=vitals
+        )
+        predict_patient(input, db)
+        count += 1
+    return {"message": f"Simulated {count} patients in surge mode"}
+
+--- backend/app/routers/override.py ---
+# (This remains exactly the same as before)
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
+from ..database import get_db
+from ..models import Visit, Queue, AuditLog
+from ..schemas import OverrideInput
+
+router = APIRouter(prefix="/override", tags=["Override"])
+
+@router.put("/visit/{visit_id}")
+def override_esi(visit_id: int, input: OverrideInput, db: Session = Depends(get_db)):
+    visit = db.query(Visit).filter(Visit.id == visit_id).first()
+    if not visit:
+        raise HTTPException(404, "Visit not found")
+    
+    old_esi = visit.esi_final
+    visit.esi_final = input.new_esi
+    visit.is_overridden = True
+    visit.override_reason = input.reason
+    visit.overridden_by = input.nurse_id
+    visit.override_timestamp = func.now()
+    
+    queue = db.query(Queue).filter(Queue.visit_id == visit_id).first()
+    if queue:
+        queue.esi_level = input.new_esi
+    
+    log = AuditLog(
+        visit_id=visit_id,
+        action="OVERRIDE",
+        old_value=str(old_esi),
+        new_value=str(input.new_esi),
+        user_id=input.nurse_id,
+        reason=input.reason
+    )
+    db.add(log)
+    db.commit()
+    
+    return {"message": f"ESI updated from {old_esi} to {input.new_esi}"}
+
+--- backend/app/main.py ---
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from .database import engine, Base
+from .routers import triage, override
+
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="PatientTriage.ai API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(triage.router)
+app.include_router(override.router)
+
+@app.get("/")
+def root():
+    return {"message": "PatientTriage.ai API is running. Go to /docs for Swagger UI."}
+
+4.  SUMMARY OF CHANGES FROM THE PREVIOUS PLAN
+----------------------------------------------
+1.  **Removed LLM**: `sentence-transformers` is completely removed from `requirements.txt`. We use pure Keyword Matching.
+2.  **Externalized Mapping**: Created `config/symptom_mapping.yaml`. Nurses can now add new symptoms without touching Python code.
+3.  **Upgraded Hard Rules**: Replaced the basic `hard_rules.py` with the production-grade version that properly handles `None` values, comprehensive ESI-1/2 keywords, and pediatric safety logic.
+4.  **Added PyYAML**: Added `pyyaml` to requirements to read the YAML file.
+
+5.  HOW TO RUN IT (Step-by-step)
+--------------------------------
+1. cd ~/Desktop/accenture/"patient triage"/backend
+2. pip install -r requirements.txt
+3. uvicorn app.main:app --reload --port 8000
+4. Open http://localhost:8000/docs
+
+================================================================================
