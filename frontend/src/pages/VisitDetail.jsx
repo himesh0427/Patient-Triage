@@ -15,7 +15,7 @@ export default function VisitDetail() {
 
   const fetchVisit = async () => {
     try {
-      const res = await api.get(`/visit/${id}`);
+      const res = await api.get(`/triage/visit/${id}`);
       setVisit(res.data);
       setOverrideForm(prev => ({...prev, new_esi: res.data.esi_final}));
     } catch (err) {
