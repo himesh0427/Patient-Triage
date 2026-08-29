@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PatientTriage.ai — Round 2 System Documentation</title>
+  
+  <!-- Tailwind CSS & Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- Mermaid.js for Flowcharts and Diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  
+  <!-- KaTeX for Math Equations -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --bg: #ffffff;
+      --code-bg: #f8fafc;
+      --border: #e2e8f0;
+      --esi-1: #dc2626;
+      --esi-2: #ea580c;
+      --esi-3: #ca8a04;
+      --esi-4: #16a34a;
+      --esi-5: #2563eb;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      background-color: #f1f5f9;
+      line-height: 1.65;
+      margin: 0;
+      padding: 2rem 1rem;
+    }
+
+    .doc-container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: var(--bg);
+      padding: 3.5rem 4rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--border);
+    }
+
+    /* Typography */
+    h1 { font-size: 2.2rem; font-weight: 800; color: #0f172a; border-bottom: 2px solid var(--primary); padding-bottom: 0.75rem; margin-top: 0; }
+    h2 { font-size: 1.5rem; font-weight: 700; color: #1e293b; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-top: 2.5rem; }
+    h3 { font-size: 1.25rem; font-weight: 600; color: #334155; margin-top: 1.75rem; }
+    h4 { font-size: 1.05rem; font-weight: 600; color: #475569; }
+    p, li { font-size: 0.96rem; color: #334155; }
+    
+    a { color: var(--primary); text-decoration: none; font-weight: 500; }
+    a:hover { text-decoration: underline; }
+
+    /* Badges */
+    img[src*="shields.io"] {
+      display: inline-block;
+      margin-right: 4px;
+      margin-bottom: 8px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    tr:nth-child(even) { background-color: #fafbfc; }
+    tr:hover { background-color: #f1f5f9; }
+
+    /* Code & Pre */
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+      color: #0f172a;
+    }
+    pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 1.25rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      border: none;
+      color: inherit;
+    }
+
+    /* Blockquotes */
+    blockquote {
+      border-left: 4px solid var(--primary);
+      margin: 1.5rem 0;
+      padding: 0.75rem 1.25rem;
+      background-color: #f0f9ff;
+      color: #0369a1;
+      border-radius: 0 8px 8px 0;
+    }
+
+    /* Mermaid Diagrams */
+    .mermaid {
+      background: #ffffff;
+      padding: 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 1.5rem 0;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    /* Floating Action Button */
+    .fab-print {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 50px;
+      box-shadow: 0 10px 15px -3px rgba(2, 132, 199, 0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      z-index: 1000;
+    }
+    .fab-print:hover {
+      background: #0369a1;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 20px -3px rgba(2, 132, 199, 0.5);
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: white; padding: 0; }
+      .doc-container { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+      .fab-print { display: none; }
+      pre { white-space: pre-wrap; word-break: break-all; }
+      h2 { page-break-before: auto; }
+      table, .mermaid { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <button class="fab-print" onclick="window.print()">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+    </svg>
+    Save as PDF / Print
+  </button>
+
+  <div class="doc-container" id="content">
+    <div style="text-align: center; padding: 2rem; color: #64748b;">
+      Loading PatientTriage.ai documentation...
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      themeVariables: {
+        primaryColor: '#e0f2fe',
+        primaryTextColor: '#0369a1',
+        primaryBorderColor: '#0284c7',
+        lineColor: '#475569',
+        secondaryColor: '#f1f5f9',
+        tertiaryColor: '#ffffff'
+      }
+    });
+
+    async function loadMarkdown() {
+      try {
+        const response = await fetch('README.md');
+        const text = await response.text();
+        
+        // Custom renderer for marked to intercept mermaid code blocks
+        const renderer = new marked.Renderer();
+        const defaultCodeRenderer = renderer.code.bind(renderer);
+
+        renderer.code = function(code, language) {
+          if (language === 'mermaid') {
+            return `<div class="mermaid">${code}</div>`;
+          }
+          return defaultCodeRenderer(code, language);
+        };
+
+        marked.setOptions({ renderer });
+        document.getElementById('content').innerHTML = marked.parse(text);
+
+        // Render KaTeX Math
+        renderMathInElement(document.getElementById('content'), {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+          ],
+          throwOnError: false
+        });
+
+        // Render Mermaid Diagrams
+        await mermaid.run({
+          nodes: document.querySelectorAll('.mermaid')
+        });
+
+      } catch (err) {
+        document.getElementById('content').innerHTML = `<div style="color:red; padding: 2rem;">Error loading README.md: ${err.message}</div>`;
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', loadMarkdown);
+  </script>
+</body>
+</html>
