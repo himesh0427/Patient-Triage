@@ -1,9 +1,9 @@
 fastapi
 uvicorn[standard]
-pydantic
 sqlalchemy
-lightgbm
-pandas
-numpy
-pyyaml
 python-dotenv
+pydantic
+lightgbm
+numpy
+pandas
+pyyaml

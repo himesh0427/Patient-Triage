@@ -1,0 +1,243 @@
+
+
+
+The system follows a deterministic safety-first rule set (Hard Rules) 
+combined with a LightGBM machine learning model that predicts ESI scores 
+(1-5). It is designed to be modular, auditable, and context-aware, handling:
+    - Mixed data quality (missing vitals, zero-history patients).
+    - Pediatric, adult, and geriatric age groups.
+    - Surge conditions (3x patient volume).
+    - Two distinct operational settings (Urban Trauma Center vs Rural Hospital).
+
+2.  THE NURSE WORKFLOW (Step-by-Step)
+--------------------------------------
+
+A.  PATIENT IDENTIFICATION
+    The triage process starts by identifying whether the patient is already in 
+    the system or visiting for the first time.
+    
+    Option 1: Existing Patient
+        Nurse enters the Patient ID. The system auto-populates:
+            - Name, Age, Sex (read-only, non-editable).
+            - Prior Health Record flag (history exists).
+    
+    Option 2: New Patient
+        The system automatically generates a unique Patient ID (visible but 
+        non-editable). Nurse manually enters:
+            - Full Name, Age, Sex.
+    
+    After identification, the nurse clicks the "Proceed to Triage" button.
+
+B.  IMMEDIATE LIFE-THREAT SAFETY GATE
+    The nurse is asked a single, binary yes/no question:
+        "Is the patient unconscious, heavily bleeding, or in cardiac/respiratory arrest?"
+    
+    If YES:
+        The system immediately assigns ESI-1 (Critical).
+        The workflow stops. No vitals or symptoms are collected.
+        An immediate "Code Blue / Bed Required" alert is pushed to the top of 
+        the nurse queue.
+
+    If NO:
+        The nurse proceeds to the Vitals Capture page.
+
+C.  VITAL SIGNS CAPTURE & EARLY TERMINATION
+    The nurse records the 6 core vitals:
+        - Heart Rate (HR)
+        - Systolic Blood Pressure (SBP)
+        - Diastolic Blood Pressure (DBP)
+        - Respiratory Rate (RR)
+        - Temperature (Temp)
+        - Oxygen Saturation (SpO2)
+
+    After the nurse clicks "Submit Vitals", the backend runs the Hard Rules 
+    engine. This is a deterministic safety gate that applies age-adjusted 
+    physiological thresholds (Pediatric under 2, Adult, and Geriatric over 65).
+
+    Early Termination Logic:
+        - If the vitals meet ESI-1 criteria (e.g., SpO2 < 85, SBP < 70, 
+          critical keywords like "cardiac arrest"):
+            -> The system assigns ESI-1 and stops immediately.
+            -> The nurse does NOT need to enter symptoms.
+        
+        - If the vitals meet ESI-2 criteria (e.g., SpO2 < 92, SBP < 90, 
+          RR > 30, high-risk keywords like "chest pain" or "stroke"):
+            -> The system assigns ESI-2 and stops immediately.
+            -> The workflow skips the symptoms page.
+
+    If NO Hard Rules are triggered (patient is stable or moderately ill), the 
+    nurse proceeds to the Symptoms page.
+
+D.  SYMPTOMS CAPTURE (Free Text)
+    The nurse types the patient's chief complaints in plain, natural language 
+    (e.g., "crushing chest pain radiating to jaw" or "fever with vomiting").
+
+    The backend maps this free text to a structured vector of 175 binary 
+    cc_* (chief complaint) flags.
+        - Method: Keyword matching (sub-1ms latency).
+        - Configurable: A YAML file (symptom_mapping.yaml) stores the mapping 
+          between trigger words/phrases and the cc_* columns.
+        - Optional Enhancement: We have prepared a semantic Sentence-BERT 
+          adapter to handle synonyms and typos, but it is disabled by default 
+          to avoid dependency bloat and ensure zero-latency performance.
+
+    The symptoms are saved, and the nurse clicks "Run Prediction".
+
+E.  MODEL OUTPUT CARD
+    The system combines Age, Vitals, and the CC vector to run the LightGBM 
+    model. The model outputs a continuous regression score, which is rounded 
+    to an ESI integer (1 to 5).
+
+    The output presented to the nurse is a clean summary card containing:
+        1.  ESI Predicted Level (Large, color-coded: Red for 1/2, Yellow for 3, 
+            Green for 4/5).
+        2.  Confidence Score (0 to 1). Represents how close the raw regression 
+            output is to a rounding boundary. Higher is more certain.
+        3.  Reasons: The top 3 clinical indicators driving the prediction (e.g., 
+            "Low SpO2 (91%)", "Geriatric patient", "Chest pain detected"). 
+            These are generated via deterministic feature attribution based on 
+            the input data.
+        4.  Recommended Action: "Immediate Bed" (for ESI 1-2) or "Monitor Queue".
+
+F.  NURSE REVIEW & LOW-CONFIDENCE HANDLING
+    If the confidence score falls below a configurable threshold (e.g., 0.50):
+        - A prominent Yellow Banner appears: "Model is uncertain. Please 
+          review the patient before assigning a bed."
+        - An "Override ESI" button is displayed directly below the result.
+        - The nurse can change the ESI level, type a reason for the change, 
+          and confirm. This creates a permanent audit log entry.
+
+    If the confidence score is high (e.g., > 0.80):
+        - The system suggests the ESI level with a "Confirmed" badge.
+        - The nurse can either accept the recommendation or still choose to 
+          override if clinical judgment differs.
+
+3.  THE QUEUE DASHBOARD (Live Patient Board)
+--------------------------------------------
+This is the primary view for nurses managing the waiting room. It shows all 
+patients currently in the queue, sorted dynamically by urgency.
+
+A.  SORTING & FILTERING
+    Default Sorting:
+        - Primary: ESI Level (ascending, 1 at the top).
+        - Secondary: Arrival Time (oldest first).
+    
+    Filter Pills (Quick Tabs):
+        - [All] [ESI 1] [ESI 2] [ESI 3] [ESI 4] [ESI 5]
+        - Clicking "ESI 1" immediately hides all non-critical patients, 
+          allowing the nurse to focus solely on the sickest patients.
+
+B.  PATIENT ROW DISPLAY
+    Each patient row shows:
+        - Patient Name
+        - ESI Level (color-coded background)
+        - Arrival Time
+        - Wait Time (calculated as Current Time - Arrival Time)
+        - Confidence Score (if available)
+        - Retriage Flag (Yellow/Red indicator)
+
+    Wait Time Color Coding (Auto-Update):
+        - Green: Wait time is within safe bounds.
+        - Orange: Wait time is approaching the safe threshold.
+        - Red: Wait time has EXCEEDED the safe threshold (Retriage Needed).
+
+C.  RETRIAGE & WAIT TIME MANAGEMENT
+    Safe Wait Thresholds (Normal Mode):
+        - ESI-1: 0 minutes (must be seen immediately)
+        - ESI-2: 10 minutes
+        - ESI-3: 30 minutes
+        - ESI-4: 60 minutes
+        - ESI-5: 120 minutes
+
+    The system runs a background check every 30 seconds (or on queue refresh).
+    If a patient's wait time exceeds their safe threshold:
+        - Normal Mode: A "Retriage Needed" flag appears on the patient row, 
+          prompting the nurse to visually reassess.
+        - Surge Mode: The system automatically escalates the patient by one 
+          level (e.g., ESI-2 becomes ESI-1, ESI-3 becomes ESI-2).
+
+D.  RURAL VS URBAN CONTEXT (Merging ESI Levels)
+    The queue display adapts to the hospital type selected in the settings.
+
+    For an Urban Trauma Center (Default):
+        Displays the standard 5 ESI levels (1 to 5).
+
+    For a Rural Critical Access Hospital (Limited resources):
+        The system merges the 5 ESI levels into a simpler 3-tier system:
+            - Tier 1 (Critical): Model ESI-1 & ESI-2 combined.
+            - Tier 2 (Stable-Urgent): Model ESI-3 & ESI-4 combined.
+            - Tier 3 (Non-Urgent): Model ESI-5.
+        This helps small rural ERs quickly identify which patients need 
+        immediate transfer to a larger facility.
+
+4.  SURGE MODE (3x Volume) - Intelligent Safety Fail-Safes
+-----------------------------------------------------------
+When the Surge Mode toggle is activated (simulating 3x normal patient volume), 
+the system shifts from "precision" to "aggressive safety" by implementing 
+two distinct rules.
+
+A.  RULE 1: LOW CONFIDENCE AUTO-ESCALATION
+    - Condition: A patient has a low confidence score (< 0.50) AND has been 
+      waiting longer than half the normal threshold (e.g., ESI-2 waiting > 5 
+      minutes instead of 10).
+    - Action: The system automatically escalates the patient by one ESI level 
+      (e.g., ESI-3 -> ESI-2, ESI-2 -> ESI-1).
+    - Rationale: During a surge, the AI biases toward over-triage to ensure 
+      no critical patient gets left in the waiting room.
+    - Audit: Every auto-escalation is permanently logged in the Audit Log with 
+      action type "AUTO_ESCALATE_SURGE".
+
+B.  RULE 2: VITAL SIGN DRIFT ALERT (High Confidence + Clinical Deterioration)
+    - Condition: The patient has high confidence (> 0.80) but the nurse has 
+      re-entered vitals during the wait period, OR there is a documented drop 
+      in condition.
+    - Detection: The system compares baseline vitals (stored at arrival) with 
+      the current vitals.
+        - Drop in SpO2 > 5%
+        - Increase in HR > 20 bpm
+        - Drop in SBP > 15 mmHg
+    - Action: The system raises a persistent "Red Alert" on the queue 
+      dashboard.
+    - Rationale: The patient is deteriorating. The nurse must physically 
+      reassess immediately. The system DOES NOT auto-escalate here, because 
+      the nurse's physical exam is required to confirm.
+    - Audit: These alerts are logged as "VITAL_DRIFT_ALERT".
+
+5.  DATA ARCHITECTURE (High Level)
+-----------------------------------
+The system is built on a SQLite database (easily upgradable to PostgreSQL) 
+with the following core tables:
+
+1.  Patients: Stores permanent patient demographics (Name, Age, Sex, History).
+2.  Visits: Stores each unique ER trip, arrival time, triage results (predicted 
+    vs final ESI), confidence score, baseline vitals for drift detection.
+3.  Vitals: Stores the 6 physiological vitals linked to a visit.
+4.  Symptom_CC: Stores the raw free text and the structured JSON vector of 175 
+    chief complaint flags.
+5.  Queue: Stores the current waiting room state (ESI level, wait time, retriage 
+    flags). This is updated in real-time.
+6.  Audit_Log: The "black box". Every single override, auto-escalation, and 
+    vital alert is logged here with a timestamp, user/system ID, and reason. 
+    This satisfies the strict clinical audit requirements.
+
+6.  SYSTEM CONFIGURATION (User-Settable Parameters)
+----------------------------------------------------
+All adjustable system parameters are centralized in a `config.py` file and 
+controlled via the frontend settings panel.
+
+-   Hospital Type: Urban (5-level ESI) or Rural (3-level ESI).
+-   Surge Mode: Off (Normal) or On (3x).
+-   Confidence Threshold:. If model confidence drops below this, 
+    the Yellow Warning Banner appears.
+-   Safe Wait Thresholds: Adjustable per ESI level (for normal and surge modes).
+
+7.  CRITICAL DESIGN PHILOSOPHY
+-------------------------------
+-   Safety First: Hard Rules always override the ML model. No ML prediction 
+    can downgrade a patient that the vitals/keywords flag as critical.
+-   Human in the Loop: The system is an assistant, not a replacement. Nurses 
+    can always override, and all overrides are logged.
+-   Context-Aware: The system behaves differently depending on the surge state 
+    and hospital type, making it genuinely deployable in the real world.
+-   Interpretable: The "Reasons" and "Confidence" scores ensure the nurse 
+    understands why the AI made a recommendation, building trust.

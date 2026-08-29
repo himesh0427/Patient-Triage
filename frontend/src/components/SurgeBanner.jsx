@@ -1,32 +1,44 @@
-import { AlertTriangle, Activity } from "lucide-react";
-import { useStore } from "../store";
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Radio, AlertTriangle } from 'lucide-react';
 
-export default function SurgeBanner() {
-  const { surgeOn, toggleSurge } = useStore();
-  if (!surgeOn) return null;
+// Requirement #10: 3× Surge Mode must be visible across Dashboard, Queue,
+// Alerts, and Settings. Reuse this banner everywhere surge is active.
+export default function SurgeBanner({ active = false, scale = 3, compact = false }) {
+  const navigate = useNavigate();
+  if (!active) return null;
+
   return (
-    <div className="animate-fadeInUp overflow-hidden rounded-xl border border-clinical-700/50 bg-gradient-to-r from-clinical-800 to-clinical-900 px-5 py-4 text-white shadow-lg shadow-clinical-900/20">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-            <AlertTriangle size={22} />
-          </div>
-          <div>
-            <div className="text-base font-extrabold tracking-wide">SURGE MODE ACTIVE — 3× simulated volume</div>
-            <div className="mt-0.5 text-xs text-clinical-200">
-              High-acuity patients are automatically prioritised. Waiting times lengthen; reassessment alerts increase. Medium-confidence recommendations escalate one tier (safety policy).
-            </div>
-          </div>
+    <div className="surge-banner">
+      <div className="surge-banner-left">
+        <div
+          style={{
+            width: '36px', height: '36px', borderRadius: '8px', background: '#ef4444',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}
+        >
+          <Radio size={20} color="#ffffff" />
         </div>
-        <div className="flex items-center gap-3">
-          <span className="badge bg-white/15 text-white backdrop-blur-sm">
-            <Activity size={12} className="animate-pulseDot" /> Dynamic prioritisation on
-          </span>
-          <button onClick={toggleSurge} className="btn bg-white px-4 py-2 text-sm font-bold text-clinical-900 shadow-sm hover:bg-clinical-50">
-            End surge
-          </button>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <strong>3× Surge Protocol Active</strong>
+            <span className="surge-badge is-on"><AlertTriangle size={11} /> SURGE</span>
+          </div>
+          {!compact && (
+            <p>
+              Safe reassessment intervals are reduced and patients auto-escalate when their
+              reduced wait limit is exceeded. All staff should prioritize reassessment of ESI-1/2.
+            </p>
+          )}
         </div>
       </div>
+      <button
+        className="btn"
+        style={{ background: '#ffffff', color: '#b91c1c', borderColor: '#ffffff', padding: '0.5rem 1rem', fontSize: '0.82rem', fontWeight: 700 }}
+        onClick={() => navigate('/queue')}
+      >
+        Manage Queue →
+      </button>
     </div>
   );
 }

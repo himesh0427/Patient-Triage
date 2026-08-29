@@ -36,6 +36,9 @@ class Visit(Base):
     overridden_by = Column(String(100), nullable=True)
     override_timestamp = Column(DateTime(timezone=True), nullable=True)
 
+    # Discharge tracking
+    discharge_time = Column(DateTime(timezone=True), nullable=True)
+
 # 3. VITALS TABLE
 # Stores the 6 vitals entered at triage. Linked to the Visit.
 class Vitals(Base):
@@ -82,3 +85,55 @@ class AuditLog(Base):
     user_id = Column(String(100)) # "SYSTEM" or "nurse_001"
     reason = Column(Text)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+# 7. HOSPITAL CONFIGURATION TABLE
+# Singleton row (id=1) storing the full hospital operational configuration.
+# Updated via the admin Hospital Configuration page. Changes are synced into
+# the in-memory settings/REASSESSMENT_WAIT dicts on save so the running
+# triage engine, queue manager, and alerts reflect them immediately.
+class HospitalConfig(Base):
+    __tablename__ = "hospital_config"
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Hospital Profile
+    profile = Column(String(50), default="community")           # "urban_trauma", "community", "rural_ed"
+    hospital_name = Column(String(200), default="Community Hospital")
+
+    # Per-ESI Reassessment Wait Thresholds (seconds)
+    wait_esi_1 = Column(Integer, default=0)
+    wait_esi_2 = Column(Integer, default=600)       # 10 min
+    wait_esi_3 = Column(Integer, default=1800)      # 30 min
+    wait_esi_4 = Column(Integer, default=3600)       # 60 min
+    wait_esi_5 = Column(Integer, default=7200)       # 120 min
+
+    # Surge-mode per-ESI thresholds (seconds)
+    surge_wait_esi_1 = Column(Integer, default=0)
+    surge_wait_esi_2 = Column(Integer, default=300)  # 5 min
+    surge_wait_esi_3 = Column(Integer, default=900)  # 15 min
+    surge_wait_esi_4 = Column(Integer, default=1800) # 30 min
+    surge_wait_esi_5 = Column(Integer, default=3600) # 60 min
+
+    # AI Confidence Threshold (0.0 – 1.0)
+    confidence_threshold = Column(Float, default=0.50)
+
+    # Staffing & Capacity
+    department_capacity = Column(Integer, default=40)
+    attending_physicians = Column(Integer, default=6)
+    nurses_on_duty = Column(Integer, default=12)
+
+    # Available Specialties (JSON array string)
+    specialties = Column(Text, default='["Emergency Medicine","Internal Medicine","Cardiology","Orthopedics","Neurology","Pediatrics"]')
+
+    # Alert Policy
+    alert_reassessment_enabled = Column(Boolean, default=True)
+    alert_low_confidence_enabled = Column(Boolean, default=True)
+    alert_queue_wait_threshold = Column(Integer, default=30)  # minutes
+
+    # Integration / EHR
+    ehr_system = Column(String(50), default="none")            # "epic", "cerner", "none"
+    ehr_endpoint = Column(String(500), default="")
+
+    # Metadata
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by = Column(String(100), default="SYSTEM")
+
