@@ -179,39 +179,6 @@ Designed for HIPAA and GDPR data privacy standards with on-premise local inferen
 
 ---
 
-## 🎥 Demo
-
-> [!NOTE]
-> **Product Demonstration Video**
-> 
-> *[Insert Video Embed / Link Here: e.g., YouTube or Loom Demo URL]*
-> 
-> Watch our 3-minute walkthrough demonstrating real-time patient intake, AI acuity scoring, borderline confidence amber alerts, clinician overrides, and surge mode queue escalation.
-
----
-
-## 📸 Screenshots
-
-> [!NOTE]
-> **System Interface Gallery**
-
-### Executive ED Overview Dashboard
-*[Insert Screenshot: ED Overview Dashboard showing active patient counts, acuity distribution, and alert banners]*
-
-### 5-Step Clinical Intake Wizard
-*[Insert Screenshot: Triage Wizard step showing vital signs input and instant symptom keyword parsing]*
-
-### AI Acuity Recommendation & Rationale
-*[Insert Screenshot: AI recommendation screen showing ESI score, confidence percentage, and plain-language clinical rationale]*
-
-### Real-Time Priority Queue & Vital Drift Alerts
-*[Insert Screenshot: Live Queue showing sorted patients, retriage flags, and flashing red vital drift alerts]*
-
-### Clinician Override & Audit Trail Modal
-*[Insert Screenshot: Override modal showing nurse ID input, rationale selection, and immutable audit log]*
-
----
-
 ## 🛠️ Tech Stack
 
 * **Frontend**: React 18, Vite, Tailwind CSS, Lucide React, Axios
