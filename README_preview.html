@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PatientTriage.ai — Round 2 System Documentation</title>
+  <title>Patient Triage System — Documentation Preview</title>
   
   <!-- Tailwind CSS & Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -173,12 +173,24 @@
 
     /* Print Styles */
     @media print {
-      body { background: white; padding: 0; }
-      .doc-container { border: none; box-shadow: none; padding: 0; max-width: 100%; }
-      .fab-print { display: none; }
+      @page {
+        margin: 0;
+      }
+      html, body {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .doc-container {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 40px 50px !important;
+        max-width: 100% !important;
+      }
+      .fab-print { display: none !important; }
       pre { white-space: pre-wrap; word-break: break-all; }
-      h2 { page-break-before: auto; }
-      table, .mermaid { page-break-inside: avoid; }
+      h1, h2, h3 { page-break-after: avoid; }
+      table, .mermaid, blockquote { page-break-inside: avoid; }
     }
   </style>
 </head>
