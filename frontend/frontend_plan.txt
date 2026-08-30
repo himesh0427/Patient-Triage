@@ -1,0 +1,473 @@
+===========================================================
+PatientTriage.ai - MVP Frontend Page Specifications
+===========================================================
+Version: 1.0 (MVP for Hackathon Demo)
+Compliance: HIPAA (United States) - Assumed Jurisdiction
+Target Users: Triage Nurses, Physicians (No separate auth for MVP)
+-----------------------------------------------------------
+
+TABLE OF CONTENTS
+1.  Design Principles
+2.  Global Components
+3.  Page 1: Triage Dashboard (Landing Page)
+4.  Page 2: Add New Patient (Intake & Assessment)
+5.  Page 3: Patient Detail / Re-assessment Modal
+6.  Page 4: Waiting Queue (Core Dashboard)
+7.  Page 5: Audit Log
+8.  Page 6: Settings (Hospital Configuration)
+9.  Demo Workflow (Step-by-step for Video)
+10. Technical Notes
+11. Success Criteria for Demo
+
+===========================================================
+1. DESIGN PRINCIPLES
+===========================================================
+- **Speed First**: Every interaction must be completed in under 
+  5 seconds. The UI is built for a busy ED nurse.
+- **Color-Coded Acuity**: Consistent use of ESI colors:
+  * ESI 1 = Red (#D32F2F)
+  * ESI 2 = Orange (#F57C00)
+  * ESI 3 = Yellow (#FBC02D)
+  * ESI 4 = Green (#388E3C)
+  * ESI 5 = Blue (#1976D2)
+- **Touch-Friendly**: Large buttons, minimum 44px tap targets.
+  Suitable for tablets at nursing station.
+- **Glanceable**: Critical info (ESI level, wait time, vitals)
+  should be readable from 3 feet away.
+- **Safety-First UI**: When uncertain, the system visually 
+  nudges the clinician to escalate (yellow/orange banners).
+- **No Scrolling for Core Actions**: Primary buttons always 
+  visible. Secondary info can scroll.
+
+===========================================================
+2. GLOBAL COMPONENTS
+===========================================================
+**2.1 Top Navigation Bar (Persistent)**
+- Left: Logo "PatientTriage.ai" + Hospital Name (configurable)
+- Center: Current time (live clock)
+- Right: 
+  * "Surge Mode" toggle switch (prominent, red when active)
+  * "Settings" gear icon
+  * "Audit Log" icon
+
+**2.2 ESI Badge Component**
+- Circular badge showing ESI level (1-5)
+- Background = ESI color
+- White bold number in center
+- Size: 48px for queue cards, 72px for detail view
+
+**2.3 Confidence Indicator Component**
+- Horizontal bar showing model confidence %
+- Color coding:
+  * >= 75% = Green (High confidence)
+  * 50-74% = Yellow (Moderate - review recommended)
+  * < 50% = Red (Low - escalate required)
+
+**2.4 Vital Sign Display Component**
+- Shows HR, BP, RR, SpO2, Temp
+- Each vital has:
+  * Numeric value
+  * Unit
+  * Color coding (red if abnormal for age, green if normal)
+  * "Missing" label if not recorded
+
+**2.5 Alert Banner Component**
+- Used for critical alerts
+- Red background with white text for immediate danger
+- Orange for caution/warnings
+- Yellow for informational
+
+===========================================================
+3. PAGE 1: TRIAGE DASHBOARD (LANDING PAGE)
+===========================================================
+**Purpose**: Overview of current ED status and quick access 
+to key actions.
+
+**Layout (3-column grid)**:
+
+**Column 1: Quick Stats (Top)**
+- Total patients in queue
+- Waiting count by ESI level (mini icons)
+- Average wait time
+- Current ED status: "Normal" / "Busy" / "Surge Mode"
+
+**Column 2: Primary Action Buttons (Center)**
+- Large button: "+ Add New Patient" (Primary, full width)
+- Secondary button: "View Waiting Queue"
+- Secondary button: "View Audit Log"
+
+**Column 3: Recent Activity (Right)**
+- Last 5 patients added with:
+  * Patient ID
+  * ESI badge
+  * Chief complaint
+  * Time added
+  * Wait time
+- Click any to open patient detail
+
+**Bottom Section: Resource Overview**
+- Beds available / total
+- Staff on duty
+- Ambulance bay status
+- These are simulated values
+
+**Demo Tip**: Start video here, show a busy ED with several 
+patients already in queue. Immediately click "Add New Patient".
+
+===========================================================
+4. PAGE 2: ADD NEW PATIENT (INTAKE & ASSESSMENT)
+===========================================================
+**Purpose**: Capture all triage-time data and generate ESI 
+recommendation with confidence and explanation.
+
+**This is a 4-step wizard (steps shown as progress bar)**:
+
+**STEP 1: Patient Demographics & History Check**
+- Fields:
+  * Age (numeric input, required)
+  * Gender (dropdown: Male/Female/Other)
+  * Patient ID (auto-generated, e.g., "PT-2024-0157")
+- Button: "Check Hospital Records" (simulates EHR lookup)
+- Result display:
+  * If history found: Show chronic conditions list 
+    (e.g., Diabetes, CHF, COPD)
+  * If no history: Show badge "Zero-History Patient"
+- Privacy note (small text): "Data used for triage only. 
+  HIPAA compliant."
+
+**STEP 2: Red Flag Assessment (Critical Safety Check)**
+- Large question cards (tap to answer Yes/No):
+  1. "Is the patient unresponsive?"
+  2. "Severe bleeding or major trauma?"
+  3. "Severe respiratory distress?"
+  4. "Cardiac arrest or near-arrest?"
+- If ANY = "Yes":
+  * Immediately show red alert: "CRITICAL - ESI 1"
+  * Skip to Step 4 (Confirmation)
+  * Auto-fill ESI = 1 with 100% confidence
+- If all = "No": Proceed to Step 3
+
+**STEP 3: Vitals & Symptoms Entry**
+- **Vitals Section** (6 fields in 2x3 grid):
+  * Heart Rate (bpm)
+  * Systolic BP (mmHg)
+  * Diastolic BP (mmHg)
+  * Respiratory Rate (breaths/min)
+  * Temperature (°C)
+  * SpO2 (%)
+  * Each field shows normal range for patient's age
+  * Fields can be left blank (system handles missing)
+- **Age-Specific Threshold Banner** (Auto-check):
+  * If SpO2 < 92% for geriatric (>65) → red warning
+  * If RR > 60 for infant (<1) → red warning
+  * If HR > 180 for pediatric → red warning
+  * Shows "Age-adjusted critical value detected"
+- **Chief Complaint Section**:
+  * Searchable dropdown (type to search among 200 cc options)
+  * Multi-select allowed (e.g., "chest pain" + "shortness of breath")
+  * Selected complaints shown as removable chips
+  * "Other" option if no match
+
+**STEP 4: Model Output & Confirmation**
+- Button: "Generate Triage Recommendation"
+- On click, show:
+  * Large ESI badge (color-coded)
+  * Confidence bar (e.g., "78% confidence")
+  * Probability distribution (bar chart for ESI 1-5)
+  * Top contributing factors:
+    - "Chest pain (high severity)"
+    - "Age 72 (geriatric risk)"
+    - "SpO2 91% (below threshold)"
+- **Safety Check**:
+  * If confidence < 60% → yellow banner: 
+    "Low confidence - consider escalating one level"
+  * If top 2 classes within 10% → show alternative:
+    "ESI 3 vs ESI 4 - clinical judgment advised"
+- **Override Button**:
+  * "Override Recommendation" (always visible)
+  * On click: dropdown to select new ESI + mandatory reason field
+  * If override to LOWER acuity → extra confirmation:
+    "Warning: Downgrading acuity. Are you sure?"
+
+**Bottom Actions**:
+- "Confirm & Add to Queue" (Primary)
+- "Cancel" (Secondary)
+- "Save as Draft" (Optional for MVP)
+
+===========================================================
+5. PAGE 3: PATIENT DETAIL / RE-ASSESSMENT MODAL
+===========================================================
+**Purpose**: View full patient info, update vitals, re-triage.
+
+**Triggered by**: Clicking any patient in queue, or when 
+re-assessment is needed.
+
+**Layout (Modal or slide-over panel)**:
+
+**Header**:
+- Patient ID + Age + Gender
+- ESI badge (current)
+- Time in queue (e.g., "Waiting 45 minutes")
+
+**Section 1: Current Vitals**
+- Table of all vitals with timestamps
+- "Update Vitals" button → opens quick form
+- If vitals worsen → red alert: "Deterioration detected - 
+  re-assessment recommended"
+
+**Section 2: Chief Complaints**
+- List of all recorded complaints as tags
+
+**Section 3: Medical History**
+- If available: list of chronic conditions
+- If not: "No history on file"
+
+**Section 4: Triage History**
+- Timeline of all triage events:
+  * Initial assessment (ESI, confidence, timestamp)
+  * Vitals updates
+  * Overrides (with reason)
+  * Re-assessments
+
+**Section 5: Actions**
+- "Re-assess Now" button (re-runs model with latest data)
+- "Override" button (same as initial)
+- "Admit Patient" button (removes from queue)
+- "Transfer" button (for rural hospitals)
+
+===========================================================
+6. PAGE 4: WAITING QUEUE (CORE DASHBOARD)
+===========================================================
+**Purpose**: Real-time monitoring of all triaged patients.
+
+**Layout: Kanban-style columns by ESI level**:
+
+**Column 1: ESI 1 (Critical)**
+- Red header
+- Patients here should be minimal (immediate treatment)
+- Auto-alert if any patient waits > 0 minutes
+
+**Column 2: ESI 2 (Emergent)**
+- Orange header
+- Safe wait: < 10 minutes
+- Alert if > 10 min
+
+**Column 3: ESI 3 (Urgent)**
+- Yellow header
+- Safe wait: < 30 minutes
+- Alert if > 30 min
+
+**Column 4: ESI 4 (Less Urgent)**
+- Green header
+- Safe wait: < 60 minutes
+- Alert if > 60 min
+
+**Column 5: ESI 5 (Non-Urgent)**
+- Blue header
+- Safe wait: < 120 minutes
+- Alert if > 120 min
+
+**Patient Card Content (within each column)**:
+- Patient ID + Age + Gender (small)
+- Chief complaint (primary, bold)
+- Wait time (large, color-coded by threshold)
+- Confidence % (small bar)
+- Vital summary (mini icons with abnormal values highlighted)
+- Override indicator (flag icon if overridden)
+- "History Available" badge (if applicable)
+
+**Card Actions (on hover or tap)**:
+- Click card → open Patient Detail modal
+- "Update Vitals" quick button
+- "Re-assess" button
+
+**Top Bar**:
+- Filter: "Show All" / "High Acuity Only" / "Low Acuity Only"
+- Search by Patient ID
+- Sort: "By Wait Time" / "By Acuity" / "By Arrival Time"
+
+**Surge Mode Banner** (when active):
+- Red banner: "SURGE MODE - 3x NORMAL VOLUME"
+- Safe wait times automatically halved
+- Re-assessment interval shortened to 10 min
+- Resource alert if > 80% capacity
+
+===========================================================
+7. PAGE 5: AUDIT LOG
+===========================================================
+**Purpose**: Demonstrate transparency, accountability, and 
+HIPAA compliance.
+
+**Layout: Table with columns**:
+- Timestamp (YYYY-MM-DD HH:MM:SS)
+- Patient ID
+- User ID (simulated, e.g., "Nurse_01")
+- Action Type:
+  * "INTAKE"
+  * "TRIAGE_SCORE"
+  * "OVERRIDE"
+  * "REASSESS"
+  * "VITALS_UPDATE"
+  * "ADMIT"
+- Details (JSON or summary):
+  * For TRIAGE_SCORE: "ESI 3, 78% confidence, 
+    features: [chest pain, age>65]"
+  * For OVERRIDE: "ESI 3 → ESI 2, Reason: 'elderly, frail, 
+    low threshold'"
+  * For VITALS_UPDATE: "SpO2 95% → 88%, alert triggered"
+- Severity (Info/Warning/Critical)
+
+**Features**:
+- Filter by date, patient, action type, user
+- Search bar
+- Export to CSV button (simulated)
+- "Purge Old Logs" button (Admin only, disabled in demo)
+
+**Demo Tip**: After performing override in assessment, 
+navigate to Audit Log and highlight the override entry with 
+timestamp and reason.
+
+===========================================================
+8. PAGE 6: SETTINGS (HOSPITAL CONFIGURATION)
+===========================================================
+**Purpose**: Demonstrate scalability and hospital-specific 
+customization.
+
+**Section 1: Hospital Profile**
+- Dropdown:
+  * "Urban Level 1 Trauma Center" (default)
+  * "Rural Community Hospital"
+  * "Pediatric Specialty Hospital"
+- Show summary of selected profile:
+  * Beds: 500 / 50 / 100
+  * Staff: 50 / 10 / 20
+  * Specialties: Full / Limited / Pediatrics
+  * Transfer distance: 5 min / 60 min / 10 min
+
+**Section 2: Age Group Thresholds**
+- Table showing normal vitals for:
+  * Pediatric (0-17): HR, RR, SpO2, Temp
+  * Adult (18-64): HR, RR, SpO2, Temp
+  * Geriatric (65+): HR, RR, SpO2, Temp
+- Values editable (but pre-filled with standard ranges)
+
+**Section 3: Surge Mode Parameters**
+- Toggle: "Enable Surge Mode"
+- When enabled:
+  * Multiplier: 3x (default)
+  * Safe wait time reduction: 50%
+  * Re-assessment interval: 10 min
+- These are configurable sliders
+
+**Section 4: Regulatory Compliance**
+- Dropdown: "HIPAA (US)" / "GDPR (EU)"
+- Shows relevant requirements:
+  * HIPAA: "Audit trail mandatory, consent implied for treatment"
+  * GDPR: "Explicit consent required, right to erasure"
+
+**Section 5: Model Confidence Thresholds**
+- Slider: "Minimum confidence for auto-accept" (default 75%)
+- Slider: "Low confidence threshold" (default 50%)
+- Toggle: "Auto-escalate on low confidence" (default ON)
+
+===========================================================
+9. DEMO WORKFLOW (STEP-BY-STEP FOR VIDEO)
+===========================================================
+**Duration: 5-7 minutes**
+
+1. **Intro (30 sec)**: Problem statement + solution overview
+
+2. **Dashboard (30 sec)**: Show busy ED, explain layout
+
+3. **Add Patient 1 - Critical (45 sec)**:
+   - Age 72, Female
+   - History found (CHF, Diabetes)
+   - Red flag: "Severe respiratory distress" = Yes
+   - System auto-assigns ESI 1
+   - Show confidence = 100%
+
+4. **Add Patient 2 - Ambulatory (1 min)**:
+   - Age 35, Male
+   - No history (zero-history patient)
+   - Vitals normal
+   - Chief complaint: "chest pain" + "dizziness"
+   - Model predicts ESI 3, confidence 82%
+   - Show feature importance: chest pain, age, vitals
+
+5. **Add Patient 3 - Pediatric (1 min)**:
+   - Age 4, Female
+   - Fever 39.5°C, RR 45
+   - Age-specific threshold triggers warning
+   - Model predicts ESI 2, confidence 75%
+   - Show age-adjusted vitals highlighted
+
+6. **Add Patient 4 - Geriatric Ambiguous (1 min)**:
+   - Age 78, Male
+   - Fatigue, mild fever, no clear symptom
+   - Model predicts ESI 3, confidence 55%
+   - Uncertainty banner shows "consider escalation"
+   - Clinician overrides to ESI 2, reason: "elderly, frail, 
+     low threshold"
+   - Show override logged in audit trail
+
+7. **Waiting Queue (1 min)**:
+   - Show 15-20 patients in queue
+   - Highlight patients with exceeded wait times
+   - Show deterioration alert for one patient
+   - Update vitals → re-assessment triggers
+
+8. **Surge Mode (1 min)**:
+   - Toggle surge mode
+   - Queue fills with 3x patients
+   - Wait time alerts trigger faster
+   - Resource panel shows strain
+
+9. **Audit Log (30 sec)**:
+   - Show complete trail of all actions
+   - Highlight override entry with reason
+
+10. **Conclusion (30 sec)**:
+    - Recap safety-first design, explainability, scalability
+    - Thank judges
+
+===========================================================
+10. TECHNICAL NOTES
+===========================================================
+**Frontend**:
+- React (or Vue) with Tailwind CSS for rapid styling
+- Use WebSocket for real-time queue updates
+- Chart.js for probability distribution and analytics
+
+**Backend**:
+- FastAPI (Python) for ML model serving
+- LightGBM model loaded via joblib
+- SQLite for audit log (demonstrates immutability)
+
+**ML Model**:
+- Features: age, gender, 6 triage vitals, 200 cc_* flags
+- Target: ESI (1-5)
+- Missing vitals handled natively by LightGBM
+- Confidence = max probability from predict_proba
+
+**Safety Bias Implementation**:
+- If confidence < 50% → auto-escalate one level
+- If top 2 classes within 10% → show alternative suggestion
+- Class weights balanced to penalize under-triage
+
+===========================================================
+11. SUCCESS CRITERIA FOR DEMO
+===========================================================
+- [ ] At least 15-20 patients in queue during demo
+- [ ] Show 1 pediatric, 1 geriatric, 1 zero-history patient
+- [ ] Show 1 ambiguous case with uncertainty
+- [ ] Show 1 clinician override with reason logged
+- [ ] Show surge mode with 3x volume
+- [ ] Show audit log with complete trail
+- [ ] Confidence indicator visible on every prediction
+- [ ] Explanation of model output (top features)
+- [ ] Age-specific thresholds demonstrated
+- [ ] HIPAA compliance mentioned
+
+===========================================================
+END OF DOCUMENT
+===========================================================
