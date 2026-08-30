@@ -12,15 +12,12 @@ export default function LoginPage() {
   const location = useLocation();
   const { login, register } = useAuth();
 
-  // Mode: 'signin' | 'register'
   const [activeTab, setActiveTab] = useState('signin');
 
-  // Sign In state
   const [identifier, setIdentifier] = useState('nurse');
   const [password, setPassword] = useState('nurse123');
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Register state
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regUsername, setRegUsername] = useState('');
@@ -128,7 +125,6 @@ export default function LoginPage() {
       }}
     >
       <div style={{ width: '100%', maxWidth: '850px' }}>
-        {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div
             style={{
@@ -162,7 +158,6 @@ export default function LoginPage() {
             alignItems: 'start',
           }}
         >
-          {/* Main Auth Form Card */}
           <div
             className="ui-card"
             style={{
@@ -173,7 +168,6 @@ export default function LoginPage() {
               background: '#ffffff',
             }}
           >
-            {/* Tab Switcher */}
             <div
               style={{
                 display: 'flex',
@@ -240,7 +234,6 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Error & Success Messages */}
             {error && (
               <div className="alert-banner alert-danger" style={{ marginBottom: '1.25rem' }}>
                 <AlertTriangle size={18} style={{ flexShrink: 0 }} />
@@ -255,7 +248,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* TAB 1: SIGN IN FORM */}
             {activeTab === 'signin' ? (
               <form onSubmit={handleLoginSubmit}>
                 <div style={{ marginBottom: '1.25rem' }}>
@@ -267,7 +259,6 @@ export default function LoginPage() {
                   </p>
                 </div>
 
-                {/* Username / Email */}
                 <div className="form-group-clean" style={{ marginBottom: '1.1rem' }}>
                   <label className="form-label-clean" htmlFor="login-identifier">
                     Staff Email or Username
@@ -296,7 +287,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Password */}
                 <div className="form-group-clean" style={{ marginBottom: '1.1rem' }}>
                   <label className="form-label-clean" htmlFor="login-password">
                     Password
@@ -342,7 +332,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Remember Session */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-body)', cursor: 'pointer' }}>
                     <input
@@ -384,7 +373,6 @@ export default function LoginPage() {
                 </div>
               </form>
             ) : (
-              /* TAB 2: REGISTER NEW NURSE / STAFF FORM */
               <form onSubmit={handleRegisterSubmit}>
                 <div style={{ marginBottom: '1.25rem' }}>
                   <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-title)' }}>
@@ -395,7 +383,6 @@ export default function LoginPage() {
                   </p>
                 </div>
 
-                {/* Full Name */}
                 <div className="form-group-clean" style={{ marginBottom: '1rem' }}>
                   <label className="form-label-clean" htmlFor="reg-fullname">
                     Full Name &amp; Credentials
@@ -424,7 +411,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Work Email */}
                 <div className="form-group-clean" style={{ marginBottom: '1rem' }}>
                   <label className="form-label-clean" htmlFor="reg-email">
                     Hospital Email
@@ -453,7 +439,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Username */}
                 <div className="form-group-clean" style={{ marginBottom: '1rem' }}>
                   <label className="form-label-clean" htmlFor="reg-username">
                     Username
@@ -469,7 +454,6 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {/* Password */}
                 <div className="form-group-clean" style={{ marginBottom: '1rem' }}>
                   <label className="form-label-clean" htmlFor="reg-password">
                     Password
@@ -515,7 +499,6 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Role Selector */}
                 <div className="form-group-clean" style={{ marginBottom: '1.25rem' }}>
                   <label className="form-label-clean">Assigned Clinical Role</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.3rem' }}>
@@ -599,7 +582,6 @@ export default function LoginPage() {
             )}
           </div>
 
-          {/* Quick 1-Click Demo Accounts Sidebar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
             <div style={{ padding: '0.4rem 0.2rem' }}>
               <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
@@ -610,7 +592,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Nurse */}
             <div
               className="ui-card"
               onClick={() => handleDemoLogin('nurse')}
@@ -669,7 +650,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Clinical Administrator */}
             <div
               className="ui-card"
               onClick={() => handleDemoLogin('admin')}
@@ -730,7 +710,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Security & HIPAA notice */}
         <div style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.75rem', color: 'var(--text-light)' }}>
           <p>
             🔒 All authentication actions, clinical decisions, and access attempts are permanently audited for HIPAA compliance.

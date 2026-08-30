@@ -103,7 +103,6 @@ export default function AccessRestricted({ requiredRoles = ['admin'], featureNam
             <ArrowLeft size={16} /> Return to Dashboard
           </button>
 
-          {/* Quick Demo Switch to Admin */}
           {user?.role !== 'admin' && (
             <button
               type="button"

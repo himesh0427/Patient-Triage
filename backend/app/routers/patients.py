@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from ..database import get_db
 from ..models import Patient, Visit
 
@@ -7,15 +8,11 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
 
 @router.get("/search/")
 def search_patients(q: str = "", db: Session = Depends(get_db)):
-    """Search patients by Name, Patient ID (e.g., P-142 or 142), or MRN.
-    NOTE: Defined before /{patient_id} so FastAPI never shadows this route."""
-    from sqlalchemy import or_
     if not q or len(q.strip()) == 0:
         return {"results": []}
     
     clean_q = q.strip()
     
-    # Extract numbers if searching by P-142 or MRN-123456
     id_num = None
     cleaned_digits = "".join([c for c in clean_q if c.isdigit()])
     if cleaned_digits:
@@ -48,15 +45,12 @@ def search_patients(q: str = "", db: Session = Depends(get_db)):
         
     return {"results": results}
 
-
 @router.get("/{patient_id:int}")
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
-    """Fetch an existing patient by ID (for auto-fill in the frontend)."""
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(404, f"Patient {patient_id} not found")
     
-    # Count prior visits
     visit_count = db.query(Visit).filter(Visit.patient_id == patient_id).count()
     
     return {
@@ -71,7 +65,6 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
 
 @router.get("/")
 def list_patients(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    """List all patients with pagination."""
     patients = db.query(Patient).offset(skip).limit(limit).all()
     total = db.query(Patient).count()
     

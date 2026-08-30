@@ -49,7 +49,6 @@ export default function Reports() {
 
   const totalRecorded = data?.total_recorded_distribution ?? esiDist.reduce((acc, curr) => acc + (curr.count || 0), 0);
 
-  // Dynamic Donut Chart calculation
   let accumulatedPercent = 0;
   const donutSegments = esiDist.map((item) => {
     const pct = totalRecorded > 0 ? (item.count / totalRecorded) * 100 : 0;
@@ -72,7 +71,6 @@ export default function Reports() {
     reassessment_alerts: 0,
   };
 
-  // SVG Trend Line calculation for Model Confidence
   const renderTrendChart = () => {
     if (!confidenceTrend || confidenceTrend.length === 0) {
       return (
@@ -90,7 +88,6 @@ export default function Reports() {
       const x = confidenceTrend.length === 1
         ? width / 2
         : padding + (i / (confidenceTrend.length - 1)) * (width - 2 * padding);
-      // confidence_pct ranges from 0 to 100 -> map to SVG Y coordinate (inverted)
       const y = height - padding - ((pt.confidence_pct || 0) / 100) * (height - 2 * padding);
       return { x, y, ...pt };
     });
@@ -143,7 +140,6 @@ export default function Reports() {
       <div className="page-container">
         <SurgeBanner active={surgeMode} />
 
-        {/* Error Banner when backend API fails */}
         {error && (
           <div className="alert-banner alert-danger" style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -156,7 +152,6 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Date Range Selector Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Institutional Decision Support &amp; Clinical Safety Source of Truth
@@ -172,7 +167,6 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Prototype data disclaimer (requirement #12) */}
         <div className="info-callout" style={{ marginBottom: '1.25rem', background: '#f0f9ff', borderColor: '#bae6fd' }}>
           <FlaskConical size={16} style={{ color: '#0369a1', flexShrink: 0 }} />
           <span>
@@ -183,7 +177,6 @@ export default function Reports() {
           </span>
         </div>
 
-        {/* 4 KPI Metric Cards with truthful data */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
           <div className="ui-card">
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>
@@ -197,7 +190,6 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Truthful Metric: ESI 1 Cases (Replaces synthetic accuracy percentage) */}
           <div className="ui-card">
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.25rem' }}>
               ESI 1 Critical Cases
@@ -235,9 +227,7 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* 2-Column Chart Row */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          {/* Dynamic Donut Chart: Real ESI Distribution */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title">ESI Acuity Distribution (Real Queue &amp; Visits)</h3>
@@ -252,10 +242,8 @@ export default function Reports() {
                 <div className="donut-container" style={{ padding: 0 }}>
                   <div className="donut-circle" style={{ width: '150px', height: '150px' }}>
                     <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-                      {/* Background track */}
                       <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#f1f5f9" strokeWidth="4.5" />
 
-                      {/* Dynamic Segments */}
                       {donutSegments.map((seg, idx) => (
                         <circle
                           key={idx}
@@ -279,7 +267,6 @@ export default function Reports() {
                   </div>
                 </div>
 
-                {/* Dynamic Legend */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.82rem' }}>
                   {donutSegments.map((seg) => (
                     <div key={seg.level} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -293,7 +280,6 @@ export default function Reports() {
             )}
           </div>
 
-          {/* Line Chart: Prototype Model Confidence Trend */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title">Prototype Model Confidence Trend (Simulated)</h3>
@@ -303,9 +289,7 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Bottom 2-Column Row: Real Top Chief Complaints + Real Alerts Summary */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-          {/* Top Chief Complaints from database */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title">Top Chief Complaints (Real Influx)</h3>
@@ -332,7 +316,6 @@ export default function Reports() {
             )}
           </div>
 
-          {/* Real Active Clinical Alerts Summary */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title">Active Clinical Alerts Summary (Live DB)</h3>

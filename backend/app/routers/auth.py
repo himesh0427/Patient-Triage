@@ -18,15 +18,10 @@ from ..services.auth_service import (
 
 router = APIRouter(prefix="/auth", tags=["Authentication & RBAC"])
 
-
-# =========================================================
-# SCHEMAS
-# =========================================================
 class LoginRequest(BaseModel):
     username_or_email: str
     password: str
     remember_me: bool = True
-
 
 class RegisterRequest(BaseModel):
     username: str
@@ -34,7 +29,6 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     role: Optional[str] = "nurse"
-
 
 class UserResponse(BaseModel):
     id: int
@@ -49,7 +43,6 @@ class UserResponse(BaseModel):
         from_attributes = True
         orm_mode = True
 
-
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -60,20 +53,11 @@ class LoginResponse(BaseModel):
         from_attributes = True
         orm_mode = True
 
-
 class RoleUpdateRequest(BaseModel):
-    role: str  # "nurse", "admin"
+    role: str
 
-
-# =========================================================
-# ENDPOINTS
-# =========================================================
 @router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
-    """
-    Register a new clinical staff member (e.g. Nurse or Administrator).
-    Hashes password, saves user in DB, and returns access token for immediate session.
-    """
     username = payload.username.strip().lower()
     email = payload.email.strip().lower()
     full_name = payload.full_name.strip()
@@ -130,22 +114,15 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
         "message": f"Staff account created successfully for {new_user.full_name}.",
     }
 
-
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    """
-    Authenticate user via username or email and password.
-    Logs successful login or failed login attempt to the compliance audit log.
-    """
     identifier = payload.username_or_email.strip().lower()
     
-    # Lookup by username or email (case-insensitive)
     user = db.query(User).filter(
         (User.username.ilike(identifier)) | (User.email.ilike(identifier))
     ).first()
 
     if not user or not verify_password(payload.password, user.hashed_password, user.salt):
-        # Record failed login attempt in audit log
         record_audit(
             db=db,
             action="FAILED_LOGIN",
@@ -170,14 +147,11 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             detail="This user account has been disabled. Please contact your hospital administrator.",
         )
 
-    # Update last login timestamp
     user.last_login = datetime.now(timezone.utc)
     db.commit()
 
-    # Generate token
     token = create_access_token(user, remember_me=payload.remember_me)
 
-    # Record successful login event in audit log
     record_audit(
         db=db,
         action="LOGIN",
@@ -192,15 +166,11 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         "message": f"Welcome back, {user.full_name}!",
     }
 
-
 @router.post("/logout")
 def logout(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Log out the currently active user and record the logout event in the audit trail.
-    """
     record_audit(
         db=db,
         action="LOGOUT",
@@ -209,25 +179,16 @@ def logout(
     )
     return {"message": "Logged out successfully."}
 
-
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
-    """
-    Return profile and role details of the currently authenticated user.
-    """
     return current_user
-
 
 @router.get("/users", response_model=List[UserResponse])
 def list_users(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """
-    List all clinical users in the system (Clinical Administrator only).
-    """
     return db.query(User).order_by(User.id.asc()).all()
-
 
 @router.put("/users/{user_id}/role", response_model=UserResponse)
 def update_user_role(
@@ -236,9 +197,6 @@ def update_user_role(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """
-    Update a clinical user's access role and log the change in the audit trail (Admin only).
-    """
     allowed_roles = ["nurse", "admin"]
     if payload.role not in allowed_roles:
         raise HTTPException(
@@ -254,7 +212,6 @@ def update_user_role(
     target_user.role = payload.role
     db.commit()
 
-    # Record role change event in audit log
     record_audit(
         db=db,
         action="ROLE_CHANGE",

@@ -38,7 +38,7 @@ export default function Sidebar({ queueCount = 0, alertsCount = 3, surgeMode = f
     { path: '/settings', label: 'Settings', icon: Settings, feature: 'settings' },
   ];
 
-  const roleStyle = ROLE_BADGES[user?.role] || ROLE_BADGES.triage_nurse;
+  const roleStyle = ROLE_BADGES[user?.role] || ROLE_BADGES.nurse;
   const initials = getInitials(user?.full_name);
 
   return (
@@ -100,7 +100,6 @@ export default function Sidebar({ queueCount = 0, alertsCount = 3, surgeMode = f
         })}
       </nav>
 
-      {/* Active Logged-In User Profile */}
       <div className="sidebar-profile" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
           <div className="profile-avatar" style={{ flexShrink: 0, fontSize: '0.78rem' }}>
@@ -131,7 +130,6 @@ export default function Sidebar({ queueCount = 0, alertsCount = 3, surgeMode = f
           </div>
         </div>
 
-        {/* Quick Logout Button */}
         <button
           type="button"
           onClick={async () => {

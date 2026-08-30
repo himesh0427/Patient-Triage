@@ -28,7 +28,6 @@ function MainAppLayout() {
   const isLoginPage = location.pathname === '/login';
 
   const fetchGlobalMetrics = async () => {
-    // Only fetch clinical queue metrics if user is authenticated
     if (!user) return;
     try {
       const [statsRes, queueRes, alertsRes] = await Promise.all([
@@ -65,14 +64,11 @@ function MainAppLayout() {
 
   return (
     <div className="app-layout">
-      {/* Modern Dark Sidebar matching screenshot */}
       <Sidebar queueCount={queueCount} alertsCount={alertsCountDerived} surgeMode={surgeMode} />
       <div className="main-wrapper">
         <Routes>
-          {/* Public Login Route fallback */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* All Clinical Roles: Nurse and Admin */}
           <Route
             path="/"
             element={
@@ -122,7 +118,6 @@ function MainAppLayout() {
             }
           />
 
-          {/* Operational Reports: Nurse & Clinical Administrator */}
           <Route
             path="/reports"
             element={
@@ -132,7 +127,6 @@ function MainAppLayout() {
             }
           />
 
-          {/* Clinical Administrator Only */}
           <Route
             path="/audit"
             element={
@@ -158,7 +152,6 @@ function MainAppLayout() {
             }
           />
 
-          {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

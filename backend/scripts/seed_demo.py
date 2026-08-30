@@ -1,58 +1,29 @@
 #!/usr/bin/env python3
-"""
-Reseed the demo database with realistic-but-clearly-simulated patients.
-
-This replaces development/test records with a curated emergency-department
-snapshot that exercises every frontend safety feature:
-
-  - Pediatric / Adult / Geriatric pathways
-  - First-time / limited-history / established patients
-  - ESI 1-5 with realistic wait times (minutes, never days)
-  - Low-confidence AI predictions (for clinician-review workflow)
-  - One vital-deterioration patient (drift alert)
-  - One clinician override (mandatory reason, audited)
-  - Discharged patients (history retained, removed from the active queue)
-
-The script uses the real LightGBM triage pipeline (predict_patient) so ESI
-levels, confidence scores, and explainability reasons are genuine model output.
-
-Run from the backend directory:
-    ../myenv/bin/python -m scripts.seed_demo      # (or your venv python)
-"""
-
 import sys
 import os
 from datetime import datetime, timedelta, timezone
 
-# Allow running as `python scripts/seed_demo.py` from the backend dir
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.database import SessionLocal  # noqa: E402
-from app.models import Patient, Visit, Queue, AuditLog  # noqa: E402
-from app.routers.triage import predict_patient, discharge_patient  # noqa: E402
-from app.routers.override import override_esi  # noqa: E402
-from app.main import record_revitals  # noqa: E402
-from app.schemas import (  # noqa: E402
+from app.database import SessionLocal
+from app.models import Patient, Visit, Queue, AuditLog
+from app.routers.triage import predict_patient, discharge_patient
+from app.routers.override import override_esi
+from app.main import record_revitals
+from app.schemas import (
     TriageInput, VitalsInput, OverrideInput, RevitalsInput,
 )
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import text
 
 NOW = datetime.now(timezone.utc).replace(tzinfo=None)
-
 
 def minutes_ago(minutes: int) -> datetime:
     return NOW - timedelta(minutes=minutes)
 
-
 def v(hr=80, sbp=120, dbp=78, rr=16, spo2=98, temp=37.0):
     return {"hr": hr, "sbp": sbp, "dbp": dbp, "rr": rr, "spo2": spo2, "temp": temp}
 
-
-# ---------------------------------------------------------------------------
-# Patient roster: (name, age, gender, has_history, symptom_text, vitals, mins_ago)
-# ---------------------------------------------------------------------------
 ROSTER = [
-    # ---- Critical / ESI-1 (hard gate) ----
     ("Marcus Whitfield", 64, "Male", False,
      "cardiac arrest, patient unresponsive and not breathing",
      v(spo2=78, sbp=62, hr=None), 3),
@@ -60,7 +31,6 @@ ROSTER = [
      "found unresponsive, no pulse, CPR in progress",
      v(spo2=70, sbp=58, hr=None), 6),
 
-    # ---- ESI-2 (hard gate: high-risk presentations) ----
     ("James Holloway", 52, "Male", True,
      "crushing chest pain radiating to the left arm, with diaphoresis",
      v(hr=112, sbp=150, rr=22, spo2=96), 12),
@@ -74,7 +44,6 @@ ROSTER = [
      "altered mental status and confusion since this morning",
      v(hr=104, sbp=142, dbp=84, rr=20, spo2=95), 27),
 
-    # ---- ESI-3 (model-driven) ----
     ("Robert Carter", 58, "Male", True,
      "abdominal pain and nausea for two days, worse after eating",
      v(hr=88, sbp=128, rr=18, temp=37.6), 34),
@@ -82,7 +51,6 @@ ROSTER = [
      "fever and cough for three days, mild shortness of breath",
      v(hr=94, sbp=132, dbp=82, rr=22, spo2=95, temp=38.1), 44),
 
-    # ---- ESI-4 (model-driven) ----
     ("Alicia Moreno", 38, "Female", False,
      "mild headache after not sleeping all night",
      v(hr=74, sbp=116, dbp=74, rr=15, spo2=99, temp=36.8), 58),
@@ -90,7 +58,6 @@ ROSTER = [
      "low back pain after lifting something heavy at work",
      v(hr=78, sbp=122, dbp=78, rr=16, spo2=98, temp=36.9), 66),
 
-    # ---- ESI-5 (model-driven) ----
     ("Grace Osei", 9, "Female", False,
      "sore throat and mild fever",
      v(hr=96, sbp=102, dbp=60, rr=20, spo2=98, temp=37.9), 78),
@@ -99,7 +66,6 @@ ROSTER = [
      v(hr=80, sbp=128, dbp=82, rr=16, spo2=98, temp=37.4), 86),
 ]
 
-# Discharged low-acuity patients (history retained, out of the active queue)
 DISCHARGED = [
     ("Sofia Anders", 24, "Female", False,
      "itchy rash and hives after starting a new medication",
@@ -109,12 +75,10 @@ DISCHARGED = [
      v(hr=78, sbp=124, rr=16, spo2=99, temp=37.0), 140),
 ]
 
-# Returning patients used to seed prior-visit history (LIMITED / ESTABLISHED)
 RETURNING = {
     "james": {"name": "James Holloway", "age": 52, "gender": "Male"},
     "robert": {"name": "Robert Carter", "age": 58, "gender": "Male"},
 }
-
 
 def wipe_existing(db):
     db.execute(text("DELETE FROM audit_logs"))
@@ -125,9 +89,7 @@ def wipe_existing(db):
     db.execute(text("DELETE FROM patients"))
     db.commit()
 
-
 def seed_prior_visit(db, patient, symptom_text, vitals, hours_ago=48):
-    """Create a completed prior visit so a returning patient has real history."""
     prior = predict_patient(
         TriageInput(
             patient_id=patient.id,
@@ -158,9 +120,7 @@ def seed_prior_visit(db, patient, symptom_text, vitals, hours_ago=48):
     db.add(log)
     db.commit()
 
-
 def seed_patient(db, entry, returning_ids, record_time=True):
-    """Run the real triage pipeline for a roster entry."""
     name, age, gender, has_history, symptom_text, vitals, mins_ago = entry
     patient_id = returning_ids.get(name)
     result = predict_patient(
@@ -192,7 +152,6 @@ def seed_patient(db, entry, returning_ids, record_time=True):
         "confidence": result.confidence,
     }
 
-
 def main():
     db = SessionLocal()
     print("Wiping existing demo records...")
@@ -201,7 +160,6 @@ def main():
     created = []
     returning_ids = {}
 
-    # Seed prior history for returning patients
     for key in ("james", "robert"):
         r = RETURNING[key]
         patient = Patient(name=r["name"], age=r["age"], gender=r["gender"], has_history=True)
@@ -226,10 +184,6 @@ def main():
         rec = seed_patient(db, entry, returning_ids)
         discharge_patient(rec["visit_id"], db)
 
-    # ------------------------------------------------------------------
-    # Post-processing: override + deterioration (audited, realistic)
-    # ------------------------------------------------------------------
-    # 1. Clinician override with mandatory reason (abdominal pain escalated)
     robert_rec = next(c for c in created if c["name"] == "Robert Carter")
     override_esi(
         robert_rec["visit_id"],
@@ -241,7 +195,6 @@ def main():
         db,
     )
 
-    # 2. Vital deterioration via re-vitals (simulated pneumonia patient)
     thomas = next(c for c in created if c["name"] == "Thomas Blake")
     record_revitals(
         thomas["visit_id"],
@@ -252,9 +205,6 @@ def main():
         db,
     )
 
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
     print("\n=== SEED SUMMARY (active) ===")
     for c in sorted(created, key=lambda x: (x["esi"], x["name"])):
         print(
@@ -263,7 +213,6 @@ def main():
     print(f"\n  Active: {len(created)}  Discharged (history retained): {len(DISCHARGED)}")
     print("Demo reseed complete.")
     db.close()
-
 
 if __name__ == "__main__":
     main()

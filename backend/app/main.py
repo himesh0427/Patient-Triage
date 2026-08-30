@@ -6,7 +6,6 @@ from datetime import datetime
 import json
 
 from .services.queue_manager import utcnow, iso_z
-
 from .database import engine, Base, get_db, SessionLocal
 from .routers import triage, override, patients, hospital_config, auth
 from .config import settings, load_config_from_db
@@ -14,11 +13,8 @@ from .models import Visit, Queue, Patient, AuditLog, Vitals, HospitalConfig, Use
 from .schemas import RevitalsInput
 from .services.auth_service import seed_demo_users, require_role, get_optional_user
 
-# Create all database tables on startup
 Base.metadata.create_all(bind=engine)
 
-
-# Lightweight migrations for existing databases (additive columns only)
 def _run_migrations():
     inspector = inspect(engine)
     if "visits" in inspector.get_table_names():
@@ -32,10 +28,8 @@ def _run_migrations():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE queue ADD COLUMN last_retriage_at DATETIME"))
     if "audit_logs" in inspector.get_table_names():
-        # Ensure User table exists and seed users
         with SessionLocal() as db:
             seed_demo_users(db)
-
 
 _run_migrations()
 load_config_from_db()
@@ -54,17 +48,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
 app.include_router(auth.router)
 app.include_router(triage.router)
 app.include_router(override.router)
 app.include_router(patients.router)
 app.include_router(hospital_config.router)
 
-
-# =========================================================
-# ROOT / HEALTH CHECK
-# =========================================================
 @app.get("/", tags=["System"])
 def root():
     return {
@@ -75,16 +64,11 @@ def root():
         "confidence_threshold": settings.CONFIDENCE_THRESHOLD
     }
 
-
-# =========================================================
-# SYSTEM CONFIGURATION ENDPOINTS
-# =========================================================
 @app.post("/config/surge", tags=["Config"])
 def toggle_surge(
     current_user: User = Depends(require_role(["nurse", "admin"])),
     db: Session = Depends(get_db)
 ):
-    """Toggle surge mode on/off (Nurse or Admin only)."""
     settings.SURGE_MODE = not settings.SURGE_MODE
     from .services.auth_service import record_audit
     record_audit(
@@ -104,7 +88,6 @@ def set_hospital_type(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """Set hospital type: URBAN (5-level ESI) or RURAL (3-tier merged) (Admin only)."""
     hospital_type = hospital_type.upper()
     if hospital_type not in ("URBAN", "RURAL"):
         from fastapi import HTTPException
@@ -131,7 +114,6 @@ def set_confidence_threshold(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """Set the confidence threshold below which the yellow alert appears (Admin only)."""
     old_thresh = settings.CONFIDENCE_THRESHOLD
     settings.CONFIDENCE_THRESHOLD = max(0.0, min(1.0, threshold))
     from .services.auth_service import record_audit
@@ -150,25 +132,18 @@ def set_confidence_threshold(
 
 @app.get("/config", tags=["Config"])
 def get_config():
-    """Get all current system configuration."""
     return {
         "surge_mode": settings.SURGE_MODE,
         "hospital_type": settings.HOSPITAL_TYPE,
         "confidence_threshold": settings.CONFIDENCE_THRESHOLD
     }
 
-
-# =========================================================
-# DASHBOARD STATS
-# =========================================================
 @app.get("/stats", tags=["Dashboard"])
 def get_stats(db: Session = Depends(get_db)):
-    """Dashboard stats for the nurse overview screen."""
     total_active = db.query(Visit).filter(Visit.is_active == True).count()
     total_discharged = db.query(Visit).filter(Visit.is_active == False).count()
     total_patients = db.query(Patient).count()
     
-    # ESI distribution of active patients
     esi_counts = {}
     for esi_level in range(1, 6):
         count = db.query(Queue).join(Visit).filter(
@@ -177,8 +152,6 @@ def get_stats(db: Session = Depends(get_db)):
         ).count()
         esi_counts[f"esi_{esi_level}"] = count
     
-    # Retriage needed count (computed fresh against real deadlines so it always
-    # matches the /alerts endpoint and the live queue timers)
     from .services.queue_manager import get_retriage_deadline
     retriage_count = 0
     active_queue_rows = db.query(Queue).join(Visit).filter(
@@ -189,12 +162,10 @@ def get_stats(db: Session = Depends(get_db)):
         if v and get_retriage_deadline(q, v)["retriage_overdue"]:
             retriage_count += 1
     
-    # Override count (today)
     override_count = db.query(AuditLog).filter(
         AuditLog.action == "OVERRIDE"
     ).count()
     
-    # Low confidence count (active patients with confidence < threshold)
     low_confidence = db.query(Visit).filter(
         Visit.is_active == True,
         Visit.confidence_score < settings.CONFIDENCE_THRESHOLD
@@ -212,30 +183,13 @@ def get_stats(db: Session = Depends(get_db)):
         "hospital_type": settings.HOSPITAL_TYPE,
     }
 
-
-# =========================================================
-# CLINICAL ALERTS (single source of truth for all surfaces)
-# =========================================================
 @app.get("/alerts", tags=["Alerts"])
 def get_alerts(db: Session = Depends(get_db)):
-    """Aggregate every active clinical alert into one consistent list.
-
-    Alert types (single source of truth used by Dashboard, Queue,
-    Alerts page, and the Sidebar badge):
-
-      CRITICAL               - active ESI-1 patient needing immediate care
-      REASSESSMENT_OVERDUE   - wait since last triage/retriage exceeded the
-                               institutional safe reassessment interval
-      LOW_CONFIDENCE         - AI confidence below the configured threshold
-      VITAL_DETERIORATION    - a VITAL_DRIFT_ALERT was raised this visit
-      SURGE                  - 3x Surge Protocol active institution-wide
-    """
     from .services.queue_manager import get_retriage_deadline
 
     threshold = settings.CONFIDENCE_THRESHOLD
     now = utcnow()
 
-    # Patients with an active drift/deterioration alert logged this visit
     drift_visit_ids = {
         r[0]
         for r in db.query(AuditLog.visit_id)
@@ -318,7 +272,6 @@ def get_alerts(db: Session = Depends(get_db)):
                 p, v.id, esi, "Re-Vitals",
             )
 
-    # Surge alert is institution-wide, not per-patient
     surge_alert = None
     if settings.SURGE_MODE:
         surge_alert = {
@@ -340,7 +293,6 @@ def get_alerts(db: Session = Depends(get_db)):
         }
         alerts.insert(0, surge_alert)
 
-    # Sort: critical first, then warning, newest patient alerts first
     severity_rank = {"critical": 0, "warning": 1, "info": 2}
     alerts.sort(key=lambda a: severity_rank.get(a["severity"], 2))
 
@@ -353,24 +305,15 @@ def get_alerts(db: Session = Depends(get_db)):
         "generated_at": iso_z(now),
     }
 
-
-# =========================================================
-# RE-VITALS (Vital Drift Detection)
-# =========================================================
 @app.post("/triage/revitals/{visit_id}", tags=["Triage"])
 def record_revitals(visit_id: int, input: RevitalsInput, db: Session = Depends(get_db)):
-    """Record updated vitals during a patient's wait.
-    Compares against baseline vitals to detect clinical deterioration."""
-    
     visit = db.query(Visit).filter(Visit.id == visit_id).first()
     if not visit:
         from fastapi import HTTPException
         raise HTTPException(404, "Visit not found")
     
-    # Get baseline vitals (the first recorded set)
     baseline = db.query(Vitals).filter(Vitals.visit_id == visit_id).order_by(Vitals.id.asc()).first()
     
-    # Save new vitals record
     new_vitals = Vitals(
         visit_id=visit_id,
         hr=input.hr, sbp=input.sbp, dbp=input.dbp,
@@ -378,7 +321,6 @@ def record_revitals(visit_id: int, input: RevitalsInput, db: Session = Depends(g
     )
     db.add(new_vitals)
     
-    # Drift detection
     alerts = []
     if baseline:
         if baseline.spo2 and input.spo2 and (baseline.spo2 - input.spo2) > 5:
@@ -391,12 +333,10 @@ def record_revitals(visit_id: int, input: RevitalsInput, db: Session = Depends(g
     drift_detected = len(alerts) > 0
     
     if drift_detected:
-        # Flag for retriage
         queue = db.query(Queue).filter(Queue.visit_id == visit_id).first()
         if queue:
             queue.retriage_needed = True
         
-        # Audit log
         log = AuditLog(
             visit_id=visit_id,
             action="VITAL_DRIFT_ALERT",
@@ -416,21 +356,15 @@ def record_revitals(visit_id: int, input: RevitalsInput, db: Session = Depends(g
         "message": "ALERT: Patient vitals deteriorating. Immediate reassessment recommended." if drift_detected else "Vitals stable. No drift detected."
     }
 
-
-# =========================================================
-# AUDIT LOG VIEWER
-# =========================================================
 @app.get("/audit", tags=["Audit"])
 def get_all_audit_logs(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """Get the full institutional audit trail across all patients (Clinical Administrator only)."""
     logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(150).all()
     
     result = []
     for log in logs:
-        # Get patient name if visit exists
         visit = db.query(Visit).filter(Visit.id == log.visit_id).first() if log.visit_id else None
         patient = db.query(Patient).filter(Patient.id == visit.patient_id).first() if visit else None
         
@@ -451,7 +385,6 @@ def get_all_audit_logs(
 
 @app.get("/audit/{visit_id}", tags=["Audit"])
 def get_audit_log(visit_id: int, db: Session = Depends(get_db)):
-    """Get the full audit trail for a visit."""
     logs = db.query(AuditLog).filter(
         AuditLog.visit_id == visit_id
     ).order_by(AuditLog.timestamp.desc()).all()
@@ -472,17 +405,11 @@ def get_audit_log(visit_id: int, db: Session = Depends(get_db)):
         ]
     }
 
-
-# =========================================================
-# REPORTS & ANALYTICS
-# =========================================================
 @app.get("/reports/analytics", tags=["Reports"])
 def get_reports_analytics(db: Session = Depends(get_db)):
-    """Dynamic analytics computed purely from real database records."""
     from .models import SymptomCC, Queue, Visit, Patient, AuditLog
     from sqlalchemy import func, or_
     
-    # 1. Total Patients & Active Queue Count
     total_patients = db.query(Patient).count()
     all_visits = db.query(Visit).all()
     total_visits = len(all_visits)
@@ -490,15 +417,12 @@ def get_reports_analytics(db: Session = Depends(get_db)):
     active_visits = db.query(Visit).filter(Visit.is_active == True).all()
     active_queue_count = len(active_visits)
     
-    # 2. ESI 1 Cases (Truthful metric replacing invented 'ESI 1 Safety Accuracy')
     esi1_cases = db.query(Visit).filter(
         or_(Visit.esi_final == 1, Visit.esi_predicted == 1)
     ).count()
     
-    # 3. Real ESI Distribution across active queue and past visits
     esi_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     
-    # Tally active queue
     active_queue_items = db.query(Queue, Visit).join(
         Visit, Queue.visit_id == Visit.id
     ).filter(Visit.is_active == True).all()
@@ -508,7 +432,6 @@ def get_reports_analytics(db: Session = Depends(get_db)):
         if 1 <= lvl <= 5:
             esi_counts[lvl] += 1
             
-    # Tally inactive/discharged visits
     for v in all_visits:
         if not v.is_active:
             lvl = v.esi_final or v.esi_predicted or 3
@@ -525,7 +448,6 @@ def get_reports_analytics(db: Session = Depends(get_db)):
         {"level": 5, "label": "ESI 5", "count": esi_counts[5], "pct": round((esi_counts[5] / total_recorded) * 100, 1) if total_recorded > 0 else 0, "color": "#38bdf8"},
     ]
     
-    # 4. Average wait time calculation across active queue patients
     now = datetime.now()
     if active_queue_items:
         total_wait_sec = sum((now - v.arrival_time).total_seconds() for q, v in active_queue_items if v.arrival_time)
@@ -533,12 +455,10 @@ def get_reports_analytics(db: Session = Depends(get_db)):
     else:
         avg_wait_min = 0
         
-    # 5. Reassessments count (Drift alerts + manual retriage + surge escalations)
     reassessments = db.query(AuditLog).filter(
         AuditLog.action.in_(["RETRIAGE", "VITAL_DRIFT_ALERT", "AUTO_ESCALATE_SURGE", "OVERRIDE"])
     ).count() + db.query(Queue).filter(Queue.retriage_needed == True).count()
     
-    # 6. Model Confidence Trend grouped by day (Real DB values)
     trend_rows = db.query(
         func.date(Visit.arrival_time).label("visit_date"),
         func.avg(Visit.confidence_score).label("avg_confidence"),
@@ -554,7 +474,6 @@ def get_reports_analytics(db: Session = Depends(get_db)):
         for row in trend_rows
     ]
     
-    # 7. Top Chief Complaints from SymptomCC raw_text
     symptoms = db.query(SymptomCC).all()
     categories = {}
     
@@ -564,7 +483,6 @@ def get_reports_analytics(db: Session = Depends(get_db)):
             continue
         txt_lower = txt.lower()
         
-        # Classify symptom text into clinical categories
         cat = "Other Presentation"
         if any(k in txt_lower for k in ["chest", "angina", "cardiac"]): cat = "Chest Pain"
         elif any(k in txt_lower for k in ["breath", "dyspnea", "sob", "wheez"]): cat = "Shortness of Breath"
@@ -588,7 +506,6 @@ def get_reports_analytics(db: Session = Depends(get_db)):
                 "width": f"{min(100, max(10, pct_val))}%"
             })
             
-    # 8. Real Alerts Breakdown
     high_volume_alerts = db.query(AuditLog).filter(AuditLog.action == "AUTO_ESCALATE_SURGE").count() + (1 if settings.SURGE_MODE else 0)
     model_alerts = db.query(Visit).filter(Visit.is_active == True, Visit.confidence_score < settings.CONFIDENCE_THRESHOLD).count()
     reassessment_alerts = db.query(Queue).filter(Queue.retriage_needed == True).count()
@@ -610,4 +527,3 @@ def get_reports_analytics(db: Session = Depends(get_db)):
             "reassessment_alerts": reassessment_alerts,
         }
     }
-

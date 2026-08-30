@@ -2,10 +2,6 @@ import React from 'react';
 import { VITAL_LIMITS, sanitizeVitalInput, validateVital, warnVital } from '../services/vitals';
 import { AlertTriangle } from 'lucide-react';
 
-// Consistent vital input with:
-//  - hard input-safety validation (rejects impossible values, never silently modifies)
-//  - inline error message beside the field
-//  - separate clinical abnormal warning (advisory, never rejects)
 export default function VitalField({ code, value, onChange, disabled }) {
   const meta = VITAL_LIMITS[code];
   if (!meta) return null;

@@ -2,8 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Radio, AlertTriangle } from 'lucide-react';
 
-// Requirement #10: 3× Surge Mode must be visible across Dashboard, Queue,
-// Alerts, and Settings. Reuse this banner everywhere surge is active.
 export default function SurgeBanner({ active = false, scale = 3, compact = false }) {
   const navigate = useNavigate();
   if (!active) return null;

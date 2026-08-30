@@ -17,12 +17,10 @@ export default function ProtectedRoute({ children, requiredRoles = null }) {
     );
   }
 
-  // Not logged in -> redirect to /login
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Role check
   if (requiredRoles && !hasRole(requiredRoles)) {
     return <AccessRestricted requiredRoles={requiredRoles} />;
   }

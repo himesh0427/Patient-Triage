@@ -61,7 +61,6 @@ export default function HospitalConfig() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Form state
   const [profile, setProfile] = useState('community');
   const [hospitalName, setHospitalName] = useState('Community Hospital');
   const [waitMinutes, setWaitMinutes] = useState({ 1: 0, 2: 10, 3: 30, 4: 60, 5: 120 });
@@ -230,7 +229,6 @@ export default function HospitalConfig() {
       />
 
       <div className="page-container">
-        {/* Banner Alert Feedback */}
         {successMessage && (
           <div className="alert-banner alert-success" style={{ marginBottom: '1.25rem' }}>
             <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
@@ -245,7 +243,6 @@ export default function HospitalConfig() {
           </div>
         )}
 
-        {/* SECTION 1: HOSPITAL PROFILES */}
         <div className="ui-card" style={{ marginBottom: '1.5rem' }}>
           <div className="ui-card-header" style={{ marginBottom: '1rem' }}>
             <div>
@@ -308,7 +305,6 @@ export default function HospitalConfig() {
           </div>
           </div>
 
-          {/* How the active profile affects the clinical workflow (requirement #13) */}
           <div className="ui-card" style={{ marginBottom: '1.5rem', background: '#f8fafc', border: '1px solid #cbd5e1' }}>
             <div className="ui-card-header" style={{ marginBottom: '0.9rem' }}>
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -364,9 +360,7 @@ export default function HospitalConfig() {
             </div>
           </div>
 
-        {/* FORM CONTAINER */}
         <form onSubmit={handleSaveAll}>
-          {/* SECTION 2: WAITING TIME & REASSESSMENT CONFIGURATION */}
           <div className="ui-card" style={{ marginBottom: '1.5rem' }}>
             <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
               <div>
@@ -449,9 +443,7 @@ export default function HospitalConfig() {
             </div>
           </div>
 
-          {/* SECTION 3 & 4: 2-COLUMN SECTION FOR STAFFING & SPECIALTIES */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            {/* SECTION 3: STAFFING & CAPACITY */}
             <div className="ui-card">
               <div className="ui-card-header" style={{ marginBottom: '1rem' }}>
                 <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -512,7 +504,6 @@ export default function HospitalConfig() {
               </div>
             </div>
 
-            {/* SECTION 4: AVAILABLE SPECIALTIES */}
             <div className="ui-card">
               <div className="ui-card-header" style={{ marginBottom: '1rem' }}>
                 <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -559,7 +550,6 @@ export default function HospitalConfig() {
             </div>
           </div>
 
-          {/* SECTION 5: ALERT POLICY */}
           <div className="ui-card" style={{ marginBottom: '1.5rem' }}>
             <div className="ui-card-header" style={{ marginBottom: '1rem' }}>
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -568,7 +558,6 @@ export default function HospitalConfig() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-              {/* Left: AI Confidence Safety Threshold */}
               <div>
                 <label className="form-label-clean" style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>AI Confidence Safety Threshold</span>
@@ -595,7 +584,6 @@ export default function HospitalConfig() {
                 </div>
               </div>
 
-              {/* Right: Alert Toggles */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', fontSize: '0.82rem' }}>
                   <input
@@ -644,7 +632,6 @@ export default function HospitalConfig() {
             </div>
           </div>
 
-          {/* SECTION 6: INTEGRATION & HOSPITAL SETTINGS */}
           <div className="ui-card" style={{ marginBottom: '1.5rem' }}>
             <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -687,7 +674,6 @@ export default function HospitalConfig() {
             </div>
           </div>
 
-          {/* SECTION 7: CONFIGURATION SUMMARY */}
           <div className="ui-card" style={{ marginBottom: '1.5rem', background: '#f8fafc', border: '1px solid #cbd5e1' }}>
             <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -725,7 +711,6 @@ export default function HospitalConfig() {
             </div>
           </div>
 
-          {/* SECTION 8: PRIVACY & SECURITY (requirement #14) */}
           <div className="ui-card" style={{ marginBottom: '1.5rem', border: '1px solid #cbd5e1' }}>
             <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -758,7 +743,6 @@ export default function HospitalConfig() {
             </div>
           </div>
 
-          {/* ACTION BAR */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0' }}>
             <div>
               {hasChanges && (

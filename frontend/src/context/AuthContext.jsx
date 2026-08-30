@@ -42,7 +42,6 @@ export function AuthProvider({ children }) {
 
   const [loading, setLoading] = useState(true);
 
-  // Synchronize on mount with backend /auth/me if token exists
   useEffect(() => {
     if (token) {
       authApi.getMe()
@@ -138,7 +137,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Quick 1-click demo role switch helper
   const switchDemoRole = async (targetRole) => {
     const creds = DEMO_CREDENTIALS[targetRole] || DEMO_CREDENTIALS.nurse;
     if (creds) {

@@ -10,7 +10,6 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Request Interceptor: Attach Bearer Token automatically
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("pt_auth_token") || sessionStorage.getItem("pt_auth_token");
@@ -22,12 +21,10 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle 401 Unauthorized
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // If unauthorized and not on login page, clear session
       const currentPath = window.location.pathname;
       if (currentPath !== "/login") {
         localStorage.removeItem("pt_auth_token");

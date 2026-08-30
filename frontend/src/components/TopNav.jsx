@@ -91,7 +91,6 @@ export default function TopNav({
     return () => { isMounted = false; };
   }, []);
 
-  // Close menus on outside click
   useEffect(() => {
     function handleClickOutside(event) {
       if (facilityRef.current && !facilityRef.current.contains(event.target)) {
@@ -141,7 +140,7 @@ export default function TopNav({
   };
 
   const initials = getInitials(user?.full_name);
-  const roleInfo = ROLE_DISPLAY[user?.role] || ROLE_DISPLAY.triage_nurse;
+  const roleInfo = ROLE_DISPLAY[user?.role] || ROLE_DISPLAY.nurse;
   const RoleIcon = roleInfo.icon;
 
   return (
@@ -159,58 +158,57 @@ export default function TopNav({
       </div>
 
       <div className="header-actions">
-        {/* Facility Dropdown Selector */}
         <div style={{ position: 'relative' }} ref={facilityRef}>
           <button
             type="button"
-            className="dept-selector"
+            className="facility-selector-btn"
             onClick={() => {
               setFacilityOpen((prev) => !prev);
               setProfileOpen(false);
             }}
+            disabled={switching}
             aria-expanded={facilityOpen}
-            title="Switch Hospital Profile / Department"
+            aria-haspopup="listbox"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.55rem',
-              background: facilityOpen ? '#eff6ff' : '#ffffff',
-              border: `1px solid ${facilityOpen ? 'var(--primary-blue)' : 'var(--card-border)'}`,
-              boxShadow: facilityOpen
-                ? '0 0 0 3px rgba(29, 78, 216, 0.12)'
-                : '0 1px 2px rgba(0, 0, 0, 0.04)',
+              gap: '0.65rem',
               padding: '0.45rem 0.85rem',
               borderRadius: 'var(--radius-md)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              color: 'var(--text-title)',
-              cursor: 'pointer',
+              border: facilityOpen ? '1px solid var(--primary-blue)' : '1px solid var(--card-border)',
+              background: facilityOpen ? '#f8fafc' : '#ffffff',
+              cursor: switching ? 'wait' : 'pointer',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
               transition: 'all 0.15s ease',
             }}
           >
             <div
               style={{
-                width: '22px',
-                height: '22px',
-                borderRadius: '5px',
-                background: '#eff6ff',
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--primary-blue)',
-                flexShrink: 0,
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                background: activeFacility.badgeBg,
+                color: activeFacility.badgeTone,
               }}
             >
-              <Building2 size={13} />
+              <activeFacility.icon size={15} />
             </div>
 
-            <span style={{ whiteSpace: 'nowrap' }}>
-              {hospitalName || activeFacility.label}
-            </span>
+            <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-title)' }}>
+                {hospitalName || activeFacility.fullName}
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                {activeFacility.label}
+              </div>
+            </div>
 
             <span
               style={{
-                fontSize: '0.66rem',
+                fontSize: '0.62rem',
                 fontWeight: 700,
                 padding: '2px 6px',
                 borderRadius: '4px',
@@ -218,6 +216,7 @@ export default function TopNav({
                 color: activeFacility.badgeTone,
                 border: `1px solid ${activeFacility.badgeBorder}`,
                 letterSpacing: '0.02em',
+                textTransform: 'uppercase',
               }}
             >
               {activeFacility.badge}
@@ -226,26 +225,25 @@ export default function TopNav({
             <ChevronDown
               size={14}
               style={{
-                color: 'var(--text-muted)',
+                color: 'var(--text-light)',
                 transform: facilityOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                marginLeft: '0.1rem',
+                transition: 'transform 0.15s ease',
               }}
             />
           </button>
 
           {facilityOpen && (
             <div
-              className="ui-card"
+              className="ui-card facility-dropdown-menu"
               style={{
                 position: 'absolute',
-                top: 'calc(100% + 8px)',
+                top: 'calc(100% + 6px)',
                 right: 0,
-                width: '350px',
+                width: '340px',
                 zIndex: 9999,
-                padding: '0.65rem',
+                padding: '0.5rem',
                 background: '#ffffff',
-                boxShadow: '0 20px 30px -8px rgba(15, 23, 42, 0.16), 0 8px 12px -4px rgba(15, 23, 42, 0.08)',
+                boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06)',
                 border: '1px solid var(--card-border)',
                 borderRadius: 'var(--radius-lg)',
                 animation: 'dropdownFadeIn 0.15s ease',
@@ -253,40 +251,48 @@ export default function TopNav({
             >
               <div
                 style={{
-                  padding: '0.4rem 0.6rem 0.6rem',
+                  padding: '0.4rem 0.6rem 0.5rem',
                   borderBottom: '1px solid var(--card-border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  marginBottom: '0.4rem',
                 }}
               >
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-                  Facility Operating Profiles
-                </span>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-light)' }}>
-                  3 Presets Available
-                </span>
+                <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>
+                  Active Hospital Presets
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                  Switches wait SLAs, triage rules, &amp; department defaults
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.45rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                 {FACILITIES.map((facility) => {
                   const isSelected = facility.id === currentProfile;
-                  const FacilityIcon = facility.icon;
+                  const Icon = facility.icon;
+
                   return (
                     <div
                       key={facility.id}
                       onClick={() => handleSelectFacility(facility)}
                       style={{
-                        padding: '0.75rem 0.85rem',
+                        padding: '0.6rem 0.75rem',
                         borderRadius: 'var(--radius-md)',
-                        background: isSelected ? '#eff6ff' : '#ffffff',
-                        border: `1px solid ${isSelected ? '#93c5fd' : 'transparent'}`,
+                        background: isSelected ? '#eff6ff' : 'transparent',
+                        border: isSelected ? '1px solid #bfdbfe' : '1px solid transparent',
                         cursor: 'pointer',
+                        transition: 'all 0.12s ease',
                         display: 'flex',
                         alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        gap: '0.65rem',
-                        transition: 'all 0.12s ease',
+                        gap: '0.75rem',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = '#f8fafc';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.background = 'transparent';
+                        }
                       }}
                     >
                       <div
@@ -294,61 +300,49 @@ export default function TopNav({
                           width: '32px',
                           height: '32px',
                           borderRadius: '8px',
-                          background: isSelected ? 'var(--primary-blue)' : '#f1f5f9',
-                          color: isSelected ? '#ffffff' : 'var(--text-muted)',
+                          background: facility.badgeBg,
+                          color: facility.badgeTone,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0,
-                          marginTop: '1px',
+                          marginTop: '2px',
                         }}
                       >
-                        <FacilityIcon size={16} />
+                        <Icon size={16} />
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                          <strong style={{ fontSize: '0.88rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-title)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <strong style={{ fontSize: '0.84rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-title)' }}>
                             {facility.fullName}
                           </strong>
                           <span
                             style={{
-                              fontSize: '0.65rem',
+                              fontSize: '0.62rem',
                               fontWeight: 700,
-                              padding: '1px 6px',
-                              borderRadius: '4px',
+                              padding: '1px 5px',
+                              borderRadius: '3px',
                               background: facility.badgeBg,
                               color: facility.badgeTone,
                               border: `1px solid ${facility.badgeBorder}`,
+                              whiteSpace: 'nowrap',
                             }}
                           >
                             {facility.badge}
                           </span>
                         </div>
 
-                        <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '0.2rem', lineHeight: '1.4' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: '1.3' }}>
                           {facility.desc}
                         </div>
                       </div>
 
-                      <div style={{ flexShrink: 0, marginTop: '4px' }}>
-                        {isSelected && (
-                          <div
-                            style={{
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              background: 'var(--primary-blue)',
-                              color: '#ffffff',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            <Check size={12} strokeWidth={3} />
-                          </div>
-                        )}
-                      </div>
+                      {isSelected && (
+                        <div style={{ color: 'var(--primary-blue)', marginTop: '4px' }}>
+                          <Check size={16} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -357,26 +351,24 @@ export default function TopNav({
               {hasRole('admin') && (
                 <div
                   style={{
-                    marginTop: '0.5rem',
-                    paddingTop: '0.5rem',
+                    padding: '0.5rem 0.6rem 0.2rem',
                     borderTop: '1px solid var(--card-border)',
-                    display: 'flex',
-                    justifyContent: 'center',
+                    marginTop: '0.4rem',
+                    textAlign: 'center',
                   }}
                 >
                   <button
                     type="button"
+                    className="btn-white"
                     onClick={() => {
                       setFacilityOpen(false);
                       navigate('/hospital-config');
                     }}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--primary-blue)',
-                      fontSize: '0.78rem',
+                      width: '100%',
+                      fontSize: '0.74rem',
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      justifyContent: 'center',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.35rem',
@@ -392,7 +384,6 @@ export default function TopNav({
           )}
         </div>
 
-        {/* Notification Icon with Badge */}
         <button
           className="icon-button"
           onClick={() => navigate('/alerts')}
@@ -402,7 +393,6 @@ export default function TopNav({
           {alertsCount > 0 && <span className="icon-badge">{alertsCount}</span>}
         </button>
 
-        {/* Interactive Profile Avatar & Dropdown */}
         <div style={{ position: 'relative' }} ref={profileRef}>
           <div
             className="profile-avatar"
@@ -433,7 +423,6 @@ export default function TopNav({
                 animation: 'dropdownFadeIn 0.15s ease',
               }}
             >
-              {/* User Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--card-border)' }}>
                 <div className="profile-avatar" style={{ width: '42px', height: '42px', fontSize: '0.9rem' }}>
                   {initials}
@@ -463,7 +452,6 @@ export default function TopNav({
                 </div>
               </div>
 
-              {/* Demo Account Switcher */}
               <div style={{ marginTop: '0.65rem' }}>
                 <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
                   Quick Switch Role (Demo)
@@ -505,7 +493,6 @@ export default function TopNav({
                 </div>
               </div>
 
-              {/* Menu Links & Sign Out */}
               <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 {hasRole('admin') && (
                   <button

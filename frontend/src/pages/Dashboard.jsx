@@ -115,7 +115,6 @@ export default function Dashboard() {
       />
 
       <div className="page-container">
-        {/* Top ESI Cards Grid */}
         <div className="esi-cards-grid">
           <div className="esi-metric-card esi-1">
             <div className="esi-metric-header"><span className="esi-metric-badge esi-1">ESI 1</span></div>
@@ -149,11 +148,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Surge banner visible on Dashboard (requirement #10) */}
         <SurgeBanner active={surgeMode} />
 
-        {/* =============================================================
-            CLINICAL SAFETY STATUS — most */}
         <div className="ui-card" style={{ marginBottom: '1.5rem', borderTop: '3px solid #b91c1c' }}>
           <div className="ui-card-header" style={{ marginBottom: '0.9rem' }}>
             <div>
@@ -204,9 +200,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 2-Column Section: Live Queue Overview + AI Model Performance */}
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '1.5rem', marginBottom: '1.5rem' }}>
-          {/* Live Queue Overview Table */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title">Live Queue Overview</h3>
@@ -219,65 +213,84 @@ export default function Dashboard() {
               <table className="clean-table">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: '130px' }}>Patient</th>
-                    <th>Pathway</th>
-                    <th>ESI</th>
-                    <th style={{ minWidth: '150px' }}>Chief Complaint</th>
-                    <th style={{ minWidth: '65px' }}>Wait</th>
-                    <th style={{ minWidth: '85px' }}>Reassess In</th>
-                    <th style={{ minWidth: '95px' }}>Confidence</th>
-                    <th style={{ minWidth: '130px' }}>Safety Status</th>
-                    <th style={{ minWidth: '135px' }}>Next Action</th>
+                    <th>Acuity</th>
+                    <th>Patient</th>
+                    <th>Demographics</th>
+                    <th>Wait Time</th>
+                    <th>Reassessment Interval</th>
+                    <th>Due In</th>
+                    <th>Safety Status</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {topPatients.length === 0 ? (
+                  {loading && topPatients.length === 0 ? (
                     <tr>
-                      <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                        No patients currently waiting in queue.
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        Loading clinical queue...
+                      </td>
+                    </tr>
+                  ) : topPatients.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        No patients currently waiting in triage queue.
                       </td>
                     </tr>
                   ) : (
                     topPatients.map((p) => {
-                      const safety = safetyStatusOf(p, confidenceThreshold);
-                      const action = nextActionOf(p, confidenceThreshold);
+                      const wait = waitLabelFor(p, nowTime);
+                      const due = dueLabelFor(p);
+                      const status = safetyStatusOf(p, confidenceThreshold);
+                      const next = nextActionOf(p, confidenceThreshold);
                       const intervalSec = intervalForEsi(thresholds, p.esi_level);
+
                       return (
                         <tr
-                          key={p.queue_id || p.visit_id}
-                          style={{ cursor: 'pointer' }}
+                          key={p.visit_id}
+                          className="clickable-row"
                           onClick={() => navigate(`/visit/${p.visit_id}`)}
                         >
                           <td>
-                            <div style={{ fontWeight: 700, color: 'var(--text-title)' }}>{p.patient_name}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              P-{p.patient_id} · {p.patient_age ?? '—'}y
-                            </div>
-                          </td>
-                          <td><PathwayBadge age={p.patient_age} /></td>
-                          <td><EsiSquareBadge level={p.esi_level} /></td>
-                          <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {p.chief_complaint || p.symptom_text || 'Emergency Presentation'}
+                            <EsiSquareBadge level={p.esi_level} />
                           </td>
                           <td>
-                            <span style={{ fontWeight: 700, color: p.esi_level === 1 ? '#b91c1c' : 'var(--text-title)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                              {waitLabelFor(p, nowTime).text}
+                            <div style={{ fontWeight: 700, color: 'var(--text-title)' }}>{p.name}</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Visit #{p.visit_id}</div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span>{p.age}y · {p.gender?.[0] || '—'}</span>
+                              <PathwayBadge age={p.age} />
+                            </div>
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>
+                            {wait.text}
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            {Number(p.esi_level) === 1 ? 'Immediate' : formatInterval(intervalSec)}
+                          </td>
+                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}>
+                            <span style={{ color: due.tone === 'critical' ? '#dc2626' : 'inherit', fontWeight: due.tone === 'critical' ? 700 : 500 }}>
+                              {due.text}
                             </span>
                           </td>
                           <td>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: p.retriage_overdue ? '#b91c1c' : 'var(--text-title)', fontFamily: 'var(--font-mono)' }}>
-                              {dueLabelFor(p).text}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <SafetyPill status={status} />
+                              <ConfidencePill confidence={p.confidence} threshold={confidenceThreshold} />
                             </div>
-                            {intervalSec !== null && intervalSec !== undefined && (
-                              <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                                interval {formatInterval(intervalSec)}
-                              </div>
-                            )}
                           </td>
-                          <td><ConfidencePill confidence={p.confidence} threshold={confidenceThreshold} /></td>
-                          <td><SafetyPill status={safety} /></td>
-                          <td>
-                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary-blue)', whiteSpace: 'nowrap' }}>{action.label}</span>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              className="btn-white"
+                              style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/visit/${p.visit_id}`);
+                              }}
+                            >
+                              {next.action} →
+                            </button>
                           </td>
                         </tr>
                       );
@@ -295,7 +308,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* AI Recommendation Panel (prototype metrics clearly labeled) */}
           <div className="ui-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div>
               <div className="ui-card-header" style={{ marginBottom: '0.85rem' }}>
@@ -347,7 +359,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Alerts & Notifications (consistent with /alerts) */}
         <div className="ui-card">
           <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
             <h3 className="ui-card-title">Alerts &amp; Notifications</h3>

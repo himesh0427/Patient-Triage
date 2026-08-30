@@ -1,11 +1,3 @@
-"""
-Hospital Configuration Router
-------------------------------
-GET  /hospital-config              → Return current configuration
-PUT  /hospital-config              → Save full configuration (Admin only)
-POST /hospital-config/apply-profile → Apply a preset profile with sensible defaults (Admin only)
-"""
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import json
@@ -18,7 +10,6 @@ from .. import config as config_module
 
 router = APIRouter(prefix="/hospital-config", tags=["Hospital Config"])
 
-# ─── PRESET PROFILES ────────────────────────────────────────────────
 PROFILES = {
     "urban_trauma": {
         "hospital_name": "Urban Trauma Center",
@@ -64,9 +55,7 @@ PROFILES = {
     },
 }
 
-
 def _get_or_create_config(db: Session) -> HospitalConfig:
-    """Fetch the singleton config row or create it with defaults."""
     cfg = db.query(HospitalConfig).filter(HospitalConfig.id == 1).first()
     if not cfg:
         cfg = HospitalConfig(id=1)
@@ -76,13 +65,10 @@ def _get_or_create_config(db: Session) -> HospitalConfig:
         _sync_to_runtime(cfg)
     return cfg
 
-
 def _sync_to_runtime(cfg: HospitalConfig):
-    """Push DB values into runtime config_module globals."""
     config_module.settings.CONFIDENCE_THRESHOLD = cfg.confidence_threshold
-    config_module.settings.SURGE_MODE = config_module.settings.SURGE_MODE  # preserve live surge state
+    config_module.settings.SURGE_MODE = config_module.settings.SURGE_MODE
 
-    # Sync wait dictionaries
     config_module.REASSESSMENT_WAIT[1] = cfg.wait_esi_1
     config_module.REASSESSMENT_WAIT[2] = cfg.wait_esi_2
     config_module.REASSESSMENT_WAIT[3] = cfg.wait_esi_3
@@ -95,9 +81,7 @@ def _sync_to_runtime(cfg: HospitalConfig):
     config_module.SURGE_REASSESSMENT_WAIT[4] = cfg.surge_wait_esi_4
     config_module.SURGE_REASSESSMENT_WAIT[5] = cfg.surge_wait_esi_5
 
-
 def _config_to_dict(cfg: HospitalConfig) -> dict:
-    """Serialize HospitalConfig model to JSON-safe dictionary."""
     try:
         specs = json.loads(cfg.specialties) if cfg.specialties else []
     except Exception:
@@ -131,15 +115,10 @@ def _config_to_dict(cfg: HospitalConfig) -> dict:
         "updated_by": cfg.updated_by,
     }
 
-
-# ─── ENDPOINTS ──────────────────────────────────────────────────────
-
 @router.get("/")
 def get_hospital_config(db: Session = Depends(get_db)):
-    """Return the current hospital configuration."""
     cfg = _get_or_create_config(db)
     return _config_to_dict(cfg)
-
 
 @router.put("/")
 def save_hospital_config(
@@ -147,12 +126,9 @@ def save_hospital_config(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """Save the full hospital configuration (Clinical Administrator only)."""
     cfg = _get_or_create_config(db)
-
     old_profile = cfg.profile
 
-    # Apply all fields
     cfg.profile = input.profile
     cfg.hospital_name = input.hospital_name
     cfg.wait_esi_1 = max(0, input.wait_esi_1)
@@ -180,10 +156,8 @@ def save_hospital_config(
     db.commit()
     db.refresh(cfg)
 
-    # Sync to runtime
     _sync_to_runtime(cfg)
 
-    # Audit log
     log = AuditLog(
         visit_id=None,
         action="CONFIG_UPDATE",
@@ -200,14 +174,12 @@ def save_hospital_config(
         "config": _config_to_dict(cfg),
     }
 
-
 @router.post("/apply-profile")
 def apply_profile(
     profile: str = "community",
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """Apply a preset hospital profile with sensible defaults (Clinical Administrator only)."""
     if profile not in PROFILES:
         raise HTTPException(400, f"Unknown profile '{profile}'. Must be one of: {list(PROFILES.keys())}")
 
@@ -223,10 +195,8 @@ def apply_profile(
     db.commit()
     db.refresh(cfg)
 
-    # Sync to runtime
     _sync_to_runtime(cfg)
 
-    # Audit log
     log = AuditLog(
         visit_id=None,
         action="CONFIG_PROFILE_APPLY",

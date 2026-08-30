@@ -102,7 +102,6 @@ export default function SettingsPage() {
       <div className="page-container">
         <SurgeBanner active={config?.surge_mode} />
 
-        {/* Role-aware notice (requirement #14) */}
         <div className="info-callout" style={{ marginBottom: '1.25rem' }}>
           <UserCog size={16} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
           <span>
@@ -125,7 +124,6 @@ export default function SettingsPage() {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Facility Operating Mode */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -171,7 +169,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* AI Confidence Safety Threshold */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -210,7 +207,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Surge Simulation Panel */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -271,7 +267,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Privacy & Security (requirement #14) */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

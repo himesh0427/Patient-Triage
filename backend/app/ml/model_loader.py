@@ -5,14 +5,10 @@ import yaml
 from pathlib import Path
 from .hard_rules import apply_hard_rules
 
-# =========================================================
-# GLOBAL VARIABLES (Loaded once at startup)
-# =========================================================
 _model = None
-_cc_columns = []          # List of all cc_* column names (e.g., ['cc_abdominalpain', ...])
-_keyword_to_cc = {}       # Mapping: "chest pain" -> "cc_chestpain"
+_cc_columns = []
+_keyword_to_cc = {}
 
-# Vitals mapping: schema field name -> model feature name
 VITALS_MAP = {
     "hr": "triage_vital_hr",
     "sbp": "triage_vital_sbp",
@@ -22,9 +18,6 @@ VITALS_MAP = {
     "temp": "triage_vital_temp",
 }
 
-# =========================================================
-# 1. LOAD THE YAML CONFIGURATION (Runs when module imports)
-# =========================================================
 def load_mapping_config():
     global _cc_columns, _keyword_to_cc
     
@@ -51,12 +44,8 @@ def load_mapping_config():
     
     return _keyword_to_cc, _cc_columns
 
-# Load the YAML file immediately when this module is imported
 load_mapping_config()
 
-# =========================================================
-# 2. LOAD THE LIGHTGBM MODEL
-# =========================================================
 def load_model():
     global _model
     if _model is None:
@@ -70,14 +59,7 @@ def load_model():
     
     return _model
 
-# =========================================================
-# 3. TEXT -> CC VECTOR (FAST KEYWORD MATCHING)
-# =========================================================
 def text_to_cc_vector(text: str):
-    """
-    Converts nurse free-text into binary flags using the YAML mapping.
-    Uses EXACT keyword matching (runs in < 1ms).
-    """
     vector = {col: 0 for col in _cc_columns}
     
     if not text or text.strip() == "":
@@ -92,24 +74,7 @@ def text_to_cc_vector(text: str):
     
     return vector
 
-# =========================================================
-# 4. MAIN PREDICTION FUNCTION
-# =========================================================
 def predict_esi(vitals: dict, age: int, gender: int, cc_vector: dict, raw_text: str):
-    """
-    Full pipeline: Hard Rules -> Feature Engineering -> ML Predict -> Confidence
-    
-    Args:
-        vitals: dict with keys hr, sbp, dbp, rr, spo2, temp (values can be None)
-        age: patient age as integer
-        gender: 0=Female, 1=Male, 2=Other
-        cc_vector: dict of cc_* column names -> 0/1 flags
-        raw_text: original symptom text from nurse
-    
-    Returns: (esi_pred, confidence, raw_score, reasons_list)
-    """
-    
-    # ----- STEP A: HARD RULES (Safety Gate) -----
     hard_result = apply_hard_rules(
         age=float(age),
         vitals=vitals,
@@ -124,43 +89,33 @@ def predict_esi(vitals: dict, age: int, gender: int, cc_vector: dict, raw_text: 
             hard_result["reasons"]
         )
 
-    # ----- STEP B: FEATURE ENGINEERING -----
     features = {}
     
-    # 1. Age
     features['age'] = age
-    
-    # 2. Gender (model was trained with: Male=1, Female=0, Other=2)
     features['gender'] = gender
     
-    # 3. Vitals (map schema names -> model feature names)
     for schema_key, model_key in VITALS_MAP.items():
         val = vitals.get(schema_key)
         features[model_key] = val if val is not None else np.nan
     
-    # 4. Chief complaints (175 cc_* flags, sorted for consistency)
     for col in _cc_columns:
         features[col] = cc_vector.get(col, 0)
     
-    # 5. Derived features (must match training pipeline)
     features['n_chief_complaints'] = sum(cc_vector.values())
     vital_values = [vitals.get(k) for k in VITALS_MAP.keys()]
     features['n_vitals_recorded'] = sum(1 for v in vital_values if v is not None)
     features['has_vitals'] = 1 if features['n_vitals_recorded'] > 0 else 0
 
-    # ----- STEP C: PREDICT USING LIGHTGBM -----
     model = load_model()
     df = pd.DataFrame([features])
     
     raw_score = model.predict(df)[0]
     esi_pred = int(np.clip(np.round(raw_score), 1, 5))
 
-    # ----- STEP D: CALCULATE CONFIDENCE -----
     boundaries = [1.5, 2.5, 3.5, 4.5]
     min_dist = min(abs(raw_score - b) for b in boundaries)
     confidence = round(min(1.0, min_dist * 2), 3)
 
-    # ----- STEP E: EXPLAINABILITY (Reasons) -----
     reasons = []
     
     if vitals.get("spo2") is not None and vitals["spo2"] < 95:
