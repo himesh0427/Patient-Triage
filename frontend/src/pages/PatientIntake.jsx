@@ -8,7 +8,7 @@ import { validateAllVitals } from '../services/vitals';
 import {
   Search, UserPlus, UserCheck, AlertTriangle, ShieldCheck,
   Lock, X, Plus, Sparkles, ArrowRight, ArrowLeft, HeartPulse,
-  CheckCircle2, Activity
+  CheckCircle2, Activity, Zap, Check
 } from 'lucide-react';
 
 const generatePatientId = () => `P-${Math.floor(100 + Math.random() * 900)}`;
@@ -53,8 +53,26 @@ export default function PatientIntake() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Common quick-pick chronic conditions
-  const commonConditions = ['Hypertension', 'Type 2 Diabetes', 'Asthma', 'CAD / Prior MI', 'CKD', 'COPD'];
+  // High-priority & common chronic conditions for emergency triage
+  const commonConditions = [
+    'Hypertension',
+    'Type 2 Diabetes',
+    'Asthma',
+    'COPD',
+    'Coronary Artery Disease / Prior MI',
+    'Heart Failure (CHF)',
+    'Chronic Kidney Disease (CKD)',
+    'Stroke / TIA history',
+    'Seizure disorder / Epilepsy',
+    'Cancer',
+    'Liver disease',
+    'Blood / bleeding disorder',
+    'Immunocompromised',
+    'Sickle cell disease',
+    'Pregnancy',
+    'Recent surgery',
+    'Recent hospitalization',
+  ];
 
   // Handle Search for Returning Patients
   const handleSearch = async (e) => {
@@ -215,24 +233,84 @@ export default function PatientIntake() {
       />
 
       <div className="page-container">
-        {/* Quick Emergency Red Button at top for Unresponsive Patients */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+        {/* Sleek Emergency Fast-Track Bypass Protocol Ribbon */}
+        <div
+          style={{
+            marginBottom: '1.25rem',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 'var(--radius-lg)',
+            padding: '0.85rem 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: '#fee2e2',
+                color: '#dc2626',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <HeartPulse size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: '0.92rem', color: '#991b1b' }}>
+                  Critical Life Threat / Unresponsive Patient?
+                </strong>
+                <span
+                  style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    background: '#dc2626',
+                    color: '#ffffff',
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  FAST-TRACK ESI 1
+                </span>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: '#b91c1c', marginTop: '0.15rem' }}>
+                Bypass intake forms for immediate cardiac arrest, severe trauma, or airway compromise.
+              </p>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleUnresponsiveBypass}
             disabled={loading}
-            className="btn-blue"
+            className="btn"
             style={{
-              background: '#ef4444',
-              borderColor: '#dc2626',
+              background: '#dc2626',
               color: '#ffffff',
-              fontWeight: 800,
-              fontSize: '0.9rem',
-              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
-              padding: '0.65rem 1.25rem'
+              border: '1px solid #b91c1c',
+              padding: '0.45rem 1rem',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            🚨 Unresponsive / Critical Patient (Fast-Track ESI 1)
+            <Zap size={14} /> Immediate ESI-1 Bypass
           </button>
         </div>
 
@@ -245,52 +323,14 @@ export default function PatientIntake() {
 
         {!triageStage ? (
           <div className="ui-card">
-            {/* SECTION 1: PATIENT TYPE SELECTION (Two large buttons side by side) */}
+            {/* SECTION 1: PATIENT TYPE SELECTION (New Patient on Left, Returning on Right) */}
             <div style={{ marginBottom: '2rem' }}>
               <label className="form-label-clean" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
                 Select Registration Type
               </label>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                {/* 🔍 Returning Patient Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('returning');
-                    setSelectedPatient(null);
-                    setError(null);
-                  }}
-                  style={{
-                    padding: '1.5rem 1.25rem',
-                    borderRadius: 'var(--radius-lg)',
-                    border: mode === 'returning' ? '2px solid var(--primary-blue)' : '1px solid var(--card-border)',
-                    background: mode === 'returning' ? '#eff6ff' : '#ffffff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                    transition: 'all 0.15s ease',
-                    boxShadow: mode === 'returning' ? '0 0 0 3px rgba(29, 78, 216, 0.12)' : 'none'
-                  }}
-                >
-                  <div style={{
-                    width: '46px', height: '46px', borderRadius: '50%',
-                    background: mode === 'returning' ? 'var(--primary-blue)' : '#f1f5f9',
-                    color: mode === 'returning' ? '#ffffff' : 'var(--text-muted)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <Search size={22} />
-                  </div>
-                  <strong style={{ fontSize: '1.05rem', color: mode === 'returning' ? 'var(--primary-blue)' : 'var(--text-title)' }}>
-                    🔍 Returning Patient
-                  </strong>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Lookup historical MRN &amp; prior visit records
-                  </span>
-                </button>
-
-                {/* ➕ New Patient Button */}
+                {/* ➕ New Patient Button (LEFT) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -325,6 +365,44 @@ export default function PatientIntake() {
                   </strong>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     Register a new ER arrival &amp; auto-generate IDs
+                  </span>
+                </button>
+
+                {/* 🔍 Returning Patient Button (RIGHT) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('returning');
+                    setSelectedPatient(null);
+                    setError(null);
+                  }}
+                  style={{
+                    padding: '1.5rem 1.25rem',
+                    borderRadius: 'var(--radius-lg)',
+                    border: mode === 'returning' ? '2px solid var(--primary-blue)' : '1px solid var(--card-border)',
+                    background: mode === 'returning' ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    transition: 'all 0.15s ease',
+                    boxShadow: mode === 'returning' ? '0 0 0 3px rgba(29, 78, 216, 0.12)' : 'none'
+                  }}
+                >
+                  <div style={{
+                    width: '46px', height: '46px', borderRadius: '50%',
+                    background: mode === 'returning' ? 'var(--primary-blue)' : '#f1f5f9',
+                    color: mode === 'returning' ? '#ffffff' : 'var(--text-muted)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Search size={22} />
+                  </div>
+                  <strong style={{ fontSize: '1.05rem', color: mode === 'returning' ? 'var(--primary-blue)' : 'var(--text-title)' }}>
+                    🔍 Returning Patient
+                  </strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Lookup historical MRN &amp; prior visit records
                   </span>
                 </button>
               </div>
@@ -661,18 +739,32 @@ export default function PatientIntake() {
                   </div>
 
                   {/* Add Condition Buttons / Input */}
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {commonConditions.map((cond) => (
-                      <button
-                        key={cond}
-                        type="button"
-                        onClick={() => addCondition(cond)}
-                        className="btn-white"
-                        style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }}
-                      >
-                        + {cond}
-                      </button>
-                    ))}
+                  <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    {commonConditions.map((cond) => {
+                      const isAdded = medicalHistory.includes(cond);
+                      return (
+                        <button
+                          key={cond}
+                          type="button"
+                          onClick={() => {
+                            if (isAdded) removeCondition(cond);
+                            else addCondition(cond);
+                          }}
+                          className={isAdded ? "btn-blue" : "btn-white"}
+                          style={{
+                            padding: '0.28rem 0.65rem',
+                            fontSize: '0.76rem',
+                            borderRadius: '9999px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            transition: 'all 0.12s ease',
+                          }}
+                        >
+                          {isAdded ? <Check size={12} strokeWidth={3} /> : '+'} {cond}
+                        </button>
+                      );
+                    })}
 
                     {showAddCondition ? (
                       <div style={{ display: 'flex', gap: '0.4rem' }}>

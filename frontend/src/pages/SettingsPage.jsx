@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { systemApi, triageApi } from '../services/api';
 import TopNav from '../components/TopNav';
 import SurgeBanner from '../components/SurgeBanner';
+import { useAuth } from '../context/AuthContext';
 import {
   ShieldCheck, Radio, Hospital, CheckCircle2, AlertTriangle, Zap,
   Lock, KeyRound, FileText, FlaskConical, UserCog
 } from 'lucide-react';
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [config, setConfig] = useState(null);
   const [threshold, setThreshold] = useState(0.50);
   const [surgeScale, setSurgeScale] = useState(3);
@@ -104,7 +106,7 @@ export default function SettingsPage() {
         <div className="info-callout" style={{ marginBottom: '1.25rem' }}>
           <UserCog size={16} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
           <span>
-            Signed in as <strong>Jane Smith, RN — Nurse Supervisor (Administrator)</strong>. Configuration
+            Signed in as <strong>{user?.full_name || 'Staff'} ({user?.role === 'admin' ? 'Clinical Administrator' : 'Staff'})</strong>. Configuration
             and surge controls require administrator role. Clinicians only see read-only settings.
           </span>
         </div>

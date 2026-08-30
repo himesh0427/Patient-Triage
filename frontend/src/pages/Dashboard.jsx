@@ -205,7 +205,7 @@ export default function Dashboard() {
         </div>
 
         {/* 2-Column Section: Live Queue Overview + AI Model Performance */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '1.5rem', marginBottom: '1.5rem' }}>
           {/* Live Queue Overview Table */}
           <div className="ui-card">
             <div className="ui-card-header">
@@ -219,15 +219,15 @@ export default function Dashboard() {
               <table className="clean-table">
                 <thead>
                   <tr>
-                    <th>Patient</th>
+                    <th style={{ minWidth: '130px' }}>Patient</th>
                     <th>Pathway</th>
                     <th>ESI</th>
-                    <th>Chief Complaint</th>
-                    <th>Wait</th>
-                    <th>Reassess In</th>
-                    <th>Confidence</th>
-                    <th>Safety Status</th>
-                    <th>Next Action</th>
+                    <th style={{ minWidth: '150px' }}>Chief Complaint</th>
+                    <th style={{ minWidth: '65px' }}>Wait</th>
+                    <th style={{ minWidth: '85px' }}>Reassess In</th>
+                    <th style={{ minWidth: '95px' }}>Confidence</th>
+                    <th style={{ minWidth: '130px' }}>Safety Status</th>
+                    <th style={{ minWidth: '135px' }}>Next Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -256,7 +256,7 @@ export default function Dashboard() {
                           </td>
                           <td><PathwayBadge age={p.patient_age} /></td>
                           <td><EsiSquareBadge level={p.esi_level} /></td>
-                          <td style={{ maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {p.chief_complaint || p.symptom_text || 'Emergency Presentation'}
                           </td>
                           <td>
@@ -277,7 +277,7 @@ export default function Dashboard() {
                           <td><ConfidencePill confidence={p.confidence} threshold={confidenceThreshold} /></td>
                           <td><SafetyPill status={safety} /></td>
                           <td>
-                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary-blue)' }}>{action.label}</span>
+                            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary-blue)', whiteSpace: 'nowrap' }}>{action.label}</span>
                           </td>
                         </tr>
                       );
@@ -298,9 +298,9 @@ export default function Dashboard() {
           {/* AI Recommendation Panel (prototype metrics clearly labeled) */}
           <div className="ui-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div>
-              <div className="ui-card-header">
-                <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FlaskConical size={17} style={{ color: '#0284c7' }} /> AI Recommendation Snapshot
+              <div className="ui-card-header" style={{ marginBottom: '0.85rem' }}>
+                <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                  <FlaskConical size={17} style={{ color: '#0284c7', flexShrink: 0 }} /> AI Snapshot
                 </h3>
               </div>
 

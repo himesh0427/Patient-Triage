@@ -7,11 +7,12 @@ import json
 
 from .services.queue_manager import utcnow, iso_z
 
-from .database import engine, Base, get_db
-from .routers import triage, override, patients, hospital_config
+from .database import engine, Base, get_db, SessionLocal
+from .routers import triage, override, patients, hospital_config, auth
 from .config import settings, load_config_from_db
-from .models import Visit, Queue, Patient, AuditLog, Vitals, HospitalConfig
+from .models import Visit, Queue, Patient, AuditLog, Vitals, HospitalConfig, User
 from .schemas import RevitalsInput
+from .services.auth_service import seed_demo_users, require_role, get_optional_user
 
 # Create all database tables on startup
 Base.metadata.create_all(bind=engine)
@@ -30,6 +31,10 @@ def _run_migrations():
         if "last_retriage_at" not in cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE queue ADD COLUMN last_retriage_at DATETIME"))
+    if "audit_logs" in inspector.get_table_names():
+        # Ensure User table exists and seed users
+        with SessionLocal() as db:
+            seed_demo_users(db)
 
 
 _run_migrations()
@@ -50,6 +55,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(auth.router)
 app.include_router(triage.router)
 app.include_router(override.router)
 app.include_router(patients.router)
@@ -74,31 +80,69 @@ def root():
 # SYSTEM CONFIGURATION ENDPOINTS
 # =========================================================
 @app.post("/config/surge", tags=["Config"])
-def toggle_surge():
-    """Toggle surge mode on/off."""
+def toggle_surge(
+    current_user: User = Depends(require_role(["nurse", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """Toggle surge mode on/off (Nurse or Admin only)."""
     settings.SURGE_MODE = not settings.SURGE_MODE
+    from .services.auth_service import record_audit
+    record_audit(
+        db=db,
+        action="AUTO_ESCALATE_SURGE" if settings.SURGE_MODE else "SURGE_DEACTIVATED",
+        user_id=current_user.username,
+        reason=f"Surge mode {'ACTIVATED' if settings.SURGE_MODE else 'DEACTIVATED'} by {current_user.full_name} ({current_user.role}).",
+    )
     return {
         "surge_mode": settings.SURGE_MODE,
         "message": f"Surge mode {'ACTIVATED' if settings.SURGE_MODE else 'DEACTIVATED'}"
     }
 
 @app.post("/config/hospital-type", tags=["Config"])
-def set_hospital_type(hospital_type: str = "URBAN"):
-    """Set hospital type: URBAN (5-level ESI) or RURAL (3-tier merged)."""
+def set_hospital_type(
+    hospital_type: str = "URBAN",
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Set hospital type: URBAN (5-level ESI) or RURAL (3-tier merged) (Admin only)."""
     hospital_type = hospital_type.upper()
     if hospital_type not in ("URBAN", "RURAL"):
         from fastapi import HTTPException
         raise HTTPException(400, "hospital_type must be 'URBAN' or 'RURAL'")
+    old_type = settings.HOSPITAL_TYPE
     settings.HOSPITAL_TYPE = hospital_type
+    from .services.auth_service import record_audit
+    record_audit(
+        db=db,
+        action="CONFIG_UPDATE",
+        user_id=current_user.username,
+        old_value=old_type,
+        new_value=hospital_type,
+        reason=f"Hospital operational type changed from {old_type} to {hospital_type} by Admin {current_user.full_name}.",
+    )
     return {
         "hospital_type": settings.HOSPITAL_TYPE,
         "message": f"Hospital type set to {settings.HOSPITAL_TYPE}"
     }
 
 @app.post("/config/confidence-threshold", tags=["Config"])
-def set_confidence_threshold(threshold: float = 0.50):
-    """Set the confidence threshold below which the yellow alert appears."""
+def set_confidence_threshold(
+    threshold: float = 0.50,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Set the confidence threshold below which the yellow alert appears (Admin only)."""
+    old_thresh = settings.CONFIDENCE_THRESHOLD
     settings.CONFIDENCE_THRESHOLD = max(0.0, min(1.0, threshold))
+    from .services.auth_service import record_audit
+    record_audit(
+        db=db,
+        action="CONFIG_UPDATE",
+        user_id=current_user.username,
+        old_value=str(old_thresh),
+        new_value=str(settings.CONFIDENCE_THRESHOLD),
+        reason=f"AI confidence warning threshold updated from {old_thresh} to {settings.CONFIDENCE_THRESHOLD} by Admin {current_user.full_name}.",
+    )
     return {
         "confidence_threshold": settings.CONFIDENCE_THRESHOLD,
         "message": f"Confidence threshold set to {settings.CONFIDENCE_THRESHOLD}"
@@ -377,9 +421,12 @@ def record_revitals(visit_id: int, input: RevitalsInput, db: Session = Depends(g
 # AUDIT LOG VIEWER
 # =========================================================
 @app.get("/audit", tags=["Audit"])
-def get_all_audit_logs(db: Session = Depends(get_db)):
-    """Get the full institutional audit trail across all patients."""
-    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(100).all()
+def get_all_audit_logs(
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Get the full institutional audit trail across all patients (Clinical Administrator only)."""
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(150).all()
     
     result = []
     for log in logs:
@@ -387,10 +434,12 @@ def get_all_audit_logs(db: Session = Depends(get_db)):
         visit = db.query(Visit).filter(Visit.id == log.visit_id).first() if log.visit_id else None
         patient = db.query(Patient).filter(Patient.id == visit.patient_id).first() if visit else None
         
+        display_name = patient.name if patient else (f"Visit #{log.visit_id}" if log.visit_id else "System / Auth Event")
+        
         result.append({
             "id": log.id,
             "visit_id": log.visit_id,
-            "patient_name": patient.name if patient else f"Visit #{log.visit_id}",
+            "patient_name": display_name,
             "action": log.action,
             "old_value": log.old_value,
             "new_value": log.new_value,

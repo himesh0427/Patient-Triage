@@ -11,7 +11,15 @@ const ACTION_BADGE = {
   DISCHARGE: { cls: 'in-room', label: 'DISCHARGE' },
   BYPASS_CRITICAL: { cls: 'waiting', label: 'BYPASS' },
   AUTO_ESCALATE_SURGE: { cls: 'waiting', label: 'SURGE' },
+  SURGE_DEACTIVATED: { cls: 'in-room', label: 'SURGE_OFF' },
   RETRIAGE: { cls: 'waiting', label: 'RETRIAGE' },
+  LOGIN: { cls: 'in-room', label: 'LOGIN' },
+  LOGOUT: { cls: 'waiting', label: 'LOGOUT' },
+  FAILED_LOGIN: { cls: 'discharged', label: 'FAILED_LOGIN' },
+  ACCESS_DENIED: { cls: 'discharged', label: 'ACCESS_DENIED' },
+  ROLE_CHANGE: { cls: 'in-room', label: 'ROLE_CHANGE' },
+  CONFIG_UPDATE: { cls: 'in-room', label: 'CONFIG' },
+  CONFIG_PROFILE_APPLY: { cls: 'in-room', label: 'PROFILE' },
 };
 
 export default function AuditLogPage() {

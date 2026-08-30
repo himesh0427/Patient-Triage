@@ -2,8 +2,8 @@
 Hospital Configuration Router
 ------------------------------
 GET  /hospital-config              → Return current configuration
-PUT  /hospital-config              → Save full configuration (syncs to triage engine)
-POST /hospital-config/apply-profile → Apply a preset profile with sensible defaults
+PUT  /hospital-config              → Save full configuration (Admin only)
+POST /hospital-config/apply-profile → Apply a preset profile with sensible defaults (Admin only)
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 import json
 
 from ..database import get_db
-from ..models import HospitalConfig, AuditLog
+from ..models import HospitalConfig, AuditLog, User
 from ..schemas import HospitalConfigInput
+from ..services.auth_service import require_role
 from .. import config as config_module
 
 router = APIRouter(prefix="/hospital-config", tags=["Hospital Config"])
@@ -46,16 +47,16 @@ PROFILES = {
         ]),
         "alert_reassessment_enabled": True, "alert_low_confidence_enabled": True,
         "alert_queue_wait_threshold": 30,
-        "ehr_system": "cerner", "ehr_endpoint": "",
+        "ehr_system": "none", "ehr_endpoint": "",
     },
     "rural_ed": {
         "hospital_name": "Rural Emergency Department",
-        "wait_esi_1": 0, "wait_esi_2": 900, "wait_esi_3": 2400, "wait_esi_4": 5400, "wait_esi_5": 10800,
-        "surge_wait_esi_1": 0, "surge_wait_esi_2": 480, "surge_wait_esi_3": 1200, "surge_wait_esi_4": 2700, "surge_wait_esi_5": 5400,
+        "wait_esi_1": 0, "wait_esi_2": 900, "wait_esi_3": 2700, "wait_esi_4": 5400, "wait_esi_5": 10800,
+        "surge_wait_esi_1": 0, "surge_wait_esi_2": 450, "surge_wait_esi_3": 1350, "surge_wait_esi_4": 2700, "surge_wait_esi_5": 5400,
         "confidence_threshold": 0.60,
-        "department_capacity": 12, "attending_physicians": 2, "nurses_on_duty": 4,
+        "department_capacity": 15, "attending_physicians": 2, "nurses_on_duty": 4,
         "specialties": json.dumps([
-            "Emergency Medicine", "Internal Medicine", "General Surgery"
+            "Emergency Medicine", "General Practice", "Family Medicine", "Tele-Triage"
         ]),
         "alert_reassessment_enabled": True, "alert_low_confidence_enabled": True,
         "alert_queue_wait_threshold": 45,
@@ -65,30 +66,23 @@ PROFILES = {
 
 
 def _get_or_create_config(db: Session) -> HospitalConfig:
-    """Fetch the singleton config row (id=1), creating it with defaults if missing."""
+    """Fetch the singleton config row or create it with defaults."""
     cfg = db.query(HospitalConfig).filter(HospitalConfig.id == 1).first()
     if not cfg:
         cfg = HospitalConfig(id=1)
         db.add(cfg)
         db.commit()
         db.refresh(cfg)
+        _sync_to_runtime(cfg)
     return cfg
 
 
 def _sync_to_runtime(cfg: HospitalConfig):
-    """Push DB values into the in-memory settings and threshold dicts
-    so the triage engine, queue manager, and alerts use them immediately."""
+    """Push DB values into runtime config_module globals."""
     config_module.settings.CONFIDENCE_THRESHOLD = cfg.confidence_threshold
+    config_module.settings.SURGE_MODE = config_module.settings.SURGE_MODE  # preserve live surge state
 
-    # Map profile to HOSPITAL_TYPE for existing consumers
-    profile_to_type = {
-        "urban_trauma": "URBAN",
-        "community": "URBAN",
-        "rural_ed": "RURAL",
-    }
-    config_module.settings.HOSPITAL_TYPE = profile_to_type.get(cfg.profile, "URBAN")
-
-    # Update reassessment wait dicts (consumed by queue_manager.get_thresholds)
+    # Sync wait dictionaries
     config_module.REASSESSMENT_WAIT[1] = cfg.wait_esi_1
     config_module.REASSESSMENT_WAIT[2] = cfg.wait_esi_2
     config_module.REASSESSMENT_WAIT[3] = cfg.wait_esi_3
@@ -103,23 +97,26 @@ def _sync_to_runtime(cfg: HospitalConfig):
 
 
 def _config_to_dict(cfg: HospitalConfig) -> dict:
-    """Serialize the config row to a frontend-friendly dict."""
+    """Serialize HospitalConfig model to JSON-safe dictionary."""
     try:
         specs = json.loads(cfg.specialties) if cfg.specialties else []
-    except (json.JSONDecodeError, TypeError):
+    except Exception:
         specs = []
 
     return {
+        "id": cfg.id,
         "profile": cfg.profile,
         "hospital_name": cfg.hospital_name,
-        "wait_thresholds": {
-            "esi_1": cfg.wait_esi_1, "esi_2": cfg.wait_esi_2, "esi_3": cfg.wait_esi_3,
-            "esi_4": cfg.wait_esi_4, "esi_5": cfg.wait_esi_5,
-        },
-        "surge_wait_thresholds": {
-            "esi_1": cfg.surge_wait_esi_1, "esi_2": cfg.surge_wait_esi_2, "esi_3": cfg.surge_wait_esi_3,
-            "esi_4": cfg.surge_wait_esi_4, "esi_5": cfg.surge_wait_esi_5,
-        },
+        "wait_esi_1": cfg.wait_esi_1,
+        "wait_esi_2": cfg.wait_esi_2,
+        "wait_esi_3": cfg.wait_esi_3,
+        "wait_esi_4": cfg.wait_esi_4,
+        "wait_esi_5": cfg.wait_esi_5,
+        "surge_wait_esi_1": cfg.surge_wait_esi_1,
+        "surge_wait_esi_2": cfg.surge_wait_esi_2,
+        "surge_wait_esi_3": cfg.surge_wait_esi_3,
+        "surge_wait_esi_4": cfg.surge_wait_esi_4,
+        "surge_wait_esi_5": cfg.surge_wait_esi_5,
         "confidence_threshold": cfg.confidence_threshold,
         "department_capacity": cfg.department_capacity,
         "attending_physicians": cfg.attending_physicians,
@@ -145,8 +142,12 @@ def get_hospital_config(db: Session = Depends(get_db)):
 
 
 @router.put("/")
-def save_hospital_config(input: HospitalConfigInput, db: Session = Depends(get_db)):
-    """Save the full hospital configuration. Immediately syncs to the triage engine."""
+def save_hospital_config(
+    input: HospitalConfigInput,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Save the full hospital configuration (Clinical Administrator only)."""
     cfg = _get_or_create_config(db)
 
     old_profile = cfg.profile
@@ -174,7 +175,7 @@ def save_hospital_config(input: HospitalConfigInput, db: Session = Depends(get_d
     cfg.alert_queue_wait_threshold = max(1, input.alert_queue_wait_threshold)
     cfg.ehr_system = input.ehr_system
     cfg.ehr_endpoint = input.ehr_endpoint
-    cfg.updated_by = input.updated_by
+    cfg.updated_by = current_user.full_name or input.updated_by
 
     db.commit()
     db.refresh(cfg)
@@ -188,8 +189,8 @@ def save_hospital_config(input: HospitalConfigInput, db: Session = Depends(get_d
         action="CONFIG_UPDATE",
         old_value=old_profile,
         new_value=cfg.profile,
-        user_id=cfg.updated_by,
-        reason=f"Hospital configuration saved: profile={cfg.profile}, threshold={cfg.confidence_threshold}"
+        user_id=current_user.username,
+        reason=f"Hospital configuration saved by Admin {current_user.full_name}: profile={cfg.profile}, threshold={cfg.confidence_threshold}"
     )
     db.add(log)
     db.commit()
@@ -201,8 +202,12 @@ def save_hospital_config(input: HospitalConfigInput, db: Session = Depends(get_d
 
 
 @router.post("/apply-profile")
-def apply_profile(profile: str = "community", db: Session = Depends(get_db)):
-    """Apply a preset hospital profile with sensible defaults."""
+def apply_profile(
+    profile: str = "community",
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Apply a preset hospital profile with sensible defaults (Clinical Administrator only)."""
     if profile not in PROFILES:
         raise HTTPException(400, f"Unknown profile '{profile}'. Must be one of: {list(PROFILES.keys())}")
 
@@ -213,7 +218,7 @@ def apply_profile(profile: str = "community", db: Session = Depends(get_db)):
     cfg.profile = profile
     for key, value in preset.items():
         setattr(cfg, key, value)
-    cfg.updated_by = "SYSTEM_PROFILE"
+    cfg.updated_by = current_user.username
 
     db.commit()
     db.refresh(cfg)
@@ -227,8 +232,8 @@ def apply_profile(profile: str = "community", db: Session = Depends(get_db)):
         action="CONFIG_PROFILE_APPLY",
         old_value=old_profile,
         new_value=profile,
-        user_id="SYSTEM",
-        reason=f"Applied preset profile: {profile}"
+        user_id=current_user.username,
+        reason=f"Admin {current_user.full_name} applied preset profile: {profile}"
     )
     db.add(log)
     db.commit()

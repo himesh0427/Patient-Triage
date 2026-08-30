@@ -78,13 +78,27 @@ class Queue(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True)
-    visit_id = Column(Integer, ForeignKey("visits.id"))
-    action = Column(String(50))   # "OVERRIDE", "AUTO_ESCALATE", "RETRIAGE"
-    old_value = Column(String(50))
-    new_value = Column(String(50))
-    user_id = Column(String(100)) # "SYSTEM" or "nurse_001"
-    reason = Column(Text)
+    visit_id = Column(Integer, ForeignKey("visits.id"), nullable=True)
+    action = Column(String(50))   # "OVERRIDE", "AUTO_ESCALATE", "RETRIAGE", "LOGIN", "LOGOUT", "FAILED_LOGIN", "ACCESS_DENIED", "ROLE_CHANGE"
+    old_value = Column(String(50), nullable=True)
+    new_value = Column(String(50), nullable=True)
+    user_id = Column(String(100)) # "SYSTEM" or "nurse_001" or username
+    reason = Column(Text, nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+# 6b. USER TABLE (Authentication & RBAC)
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(100), unique=True, index=True, nullable=False)
+    email = Column(String(200), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    salt = Column(String(64), nullable=False)
+    full_name = Column(String(150), nullable=False)
+    role = Column(String(50), nullable=False)  # "triage_nurse", "charge_nurse", "admin"
+    is_active = Column(Boolean, default=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 # 7. HOSPITAL CONFIGURATION TABLE
 # Singleton row (id=1) storing the full hospital operational configuration.

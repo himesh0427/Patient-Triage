@@ -1314,3 +1314,15 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 /* Small dot legend */
 .dot-legend { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: var(--text-muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+

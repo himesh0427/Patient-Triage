@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from datetime import datetime, timezone
 from ..database import get_db
-from ..models import Visit, Queue, AuditLog
+from ..models import Visit, Queue, AuditLog, User
 from ..schemas import OverrideInput
+from ..services.auth_service import require_role
 
 router = APIRouter(prefix="/override", tags=["Override"])
 
@@ -12,7 +13,12 @@ def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 @router.put("/visit/{visit_id}")
-def override_esi(visit_id: int, input: OverrideInput, db: Session = Depends(get_db)):
+def override_esi(
+    visit_id: int,
+    input: OverrideInput,
+    current_user: User = Depends(require_role(["nurse", "admin"])),
+    db: Session = Depends(get_db)
+):
     # 1. Find the visit
     visit = db.query(Visit).filter(Visit.id == visit_id).first()
     if not visit:
