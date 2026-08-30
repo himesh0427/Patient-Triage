@@ -122,7 +122,7 @@ function MainAppLayout() {
             }
           />
 
-          {/* Operational Reports: Emergency Nurse & Clinical Administrator */}
+          {/* Operational Reports: Nurse & Clinical Administrator */}
           <Route
             path="/reports"
             element={

@@ -4,9 +4,7 @@ import { ShieldAlert, ArrowLeft, Lock, UserCheck, KeyRound } from 'lucide-react'
 import { useAuth, DEMO_CREDENTIALS } from '../context/AuthContext';
 
 const ROLE_LABELS = {
-  nurse: 'Emergency Nurse',
-  triage_nurse: 'Emergency Nurse',
-  charge_nurse: 'Emergency Nurse',
+  nurse: 'Nurse',
   admin: 'Clinical Administrator',
 };
 

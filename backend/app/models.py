@@ -95,7 +95,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     salt = Column(String(64), nullable=False)
     full_name = Column(String(150), nullable=False)
-    role = Column(String(50), nullable=False)  # "triage_nurse", "charge_nurse", "admin"
+    role = Column(String(50), nullable=False)  # "nurse", "admin"
     is_active = Column(Boolean, default=True)
     last_login = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

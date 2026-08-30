@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from ..database import get_db
 from ..models import User
 from ..services.auth_service import (
+    generate_salt,
+    hash_password,
     verify_password,
     create_access_token,
     get_current_user,
@@ -26,6 +28,14 @@ class LoginRequest(BaseModel):
     remember_me: bool = True
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+    full_name: str
+    role: Optional[str] = "nurse"
+
+
 class UserResponse(BaseModel):
     id: int
     username: str
@@ -36,6 +46,7 @@ class UserResponse(BaseModel):
     last_login: Optional[datetime] = None
 
     class Config:
+        from_attributes = True
         orm_mode = True
 
 
@@ -45,14 +56,81 @@ class LoginResponse(BaseModel):
     user: UserResponse
     message: str
 
+    class Config:
+        from_attributes = True
+        orm_mode = True
+
 
 class RoleUpdateRequest(BaseModel):
-    role: str  # "triage_nurse", "charge_nurse", "admin"
+    role: str  # "nurse", "admin"
 
 
 # =========================================================
 # ENDPOINTS
 # =========================================================
+@router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Register a new clinical staff member (e.g. Nurse or Administrator).
+    Hashes password, saves user in DB, and returns access token for immediate session.
+    """
+    username = payload.username.strip().lower()
+    email = payload.email.strip().lower()
+    full_name = payload.full_name.strip()
+    role = payload.role.strip().lower() if payload.role else "nurse"
+
+    if not username or not email or not payload.password or not full_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Full name, username, email, and password are all required."
+        )
+
+    if role not in ["nurse", "admin"]:
+        role = "nurse"
+
+    existing_user = db.query(User).filter(
+        (User.username.ilike(username)) | (User.email.ilike(email))
+    ).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A staff account with this username or email already exists."
+        )
+
+    salt = generate_salt()
+    pwd_hash = hash_password(payload.password, salt)
+    new_user = User(
+        username=username,
+        email=email,
+        hashed_password=pwd_hash,
+        salt=salt,
+        full_name=full_name,
+        role=role,
+        is_active=True,
+        last_login=datetime.now(timezone.utc),
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    token = create_access_token(new_user, remember_me=True)
+
+    record_audit(
+        db=db,
+        action="USER_REGISTERED",
+        user_id=new_user.username,
+        new_value=new_user.role,
+        reason=f"New clinical staff registered: {new_user.full_name} ({new_user.role}).",
+    )
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": new_user,
+        "message": f"Staff account created successfully for {new_user.full_name}.",
+    }
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """
@@ -161,7 +239,7 @@ def update_user_role(
     """
     Update a clinical user's access role and log the change in the audit trail (Admin only).
     """
-    allowed_roles = ["triage_nurse", "charge_nurse", "admin"]
+    allowed_roles = ["nurse", "admin"]
     if payload.role not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

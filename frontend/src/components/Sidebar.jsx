@@ -8,9 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 const ROLE_BADGES = {
-  nurse: { label: 'Emergency Nurse', bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd' },
-  triage_nurse: { label: 'Emergency Nurse', bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd' },
-  charge_nurse: { label: 'Emergency Nurse', bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd' },
+  nurse: { label: 'Nurse', bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd' },
   admin: { label: 'Administrator', bg: 'rgba(168, 85, 247, 0.2)', text: '#d8b4fe' },
 };
 

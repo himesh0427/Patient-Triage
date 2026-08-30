@@ -9,8 +9,8 @@ export const DEMO_CREDENTIALS = {
     email: 'nurse@hospital.org',
     password: 'nurse123',
     name: 'Sarah Jenkins, RN',
-    title: 'Emergency Triage & Staff Nurse',
-    badge: 'Emergency Nurse',
+    title: 'Staff Nurse',
+    badge: 'Nurse',
     role: 'nurse',
     desc: 'Frontline triage, LightGBM ESI scoring, reassessments, overrides & reports.',
   },
@@ -25,10 +25,6 @@ export const DEMO_CREDENTIALS = {
     desc: 'Full access: Hospital configurations, wait SLAs, audit compliance & system settings.',
   },
 };
-
-// Aliases for compatibility
-DEMO_CREDENTIALS.triage_nurse = DEMO_CREDENTIALS.nurse;
-DEMO_CREDENTIALS.charge_nurse = DEMO_CREDENTIALS.nurse;
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -96,6 +92,35 @@ export function AuthProvider({ children }) {
     return userData;
   };
 
+  const register = async ({ username, email, password, full_name, role = 'nurse', rememberMe = true }) => {
+    const res = await authApi.register({
+      username,
+      email,
+      password,
+      full_name,
+      role,
+    });
+
+    const { access_token, user: userData } = res.data;
+
+    setToken(access_token);
+    setUser(userData);
+
+    if (rememberMe) {
+      localStorage.setItem('pt_auth_token', access_token);
+      localStorage.setItem('pt_auth_user', JSON.stringify(userData));
+      sessionStorage.removeItem('pt_auth_token');
+      sessionStorage.removeItem('pt_auth_user');
+    } else {
+      sessionStorage.setItem('pt_auth_token', access_token);
+      sessionStorage.setItem('pt_auth_user', JSON.stringify(userData));
+      localStorage.removeItem('pt_auth_token');
+      localStorage.removeItem('pt_auth_user');
+    }
+
+    return userData;
+  };
+
   const logout = async () => {
     try {
       if (token) {
@@ -126,11 +151,6 @@ export function AuthProvider({ children }) {
     if (user.role === 'admin') return true;
 
     const allowed = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-    if (allowed.includes('nurse') || allowed.includes('triage_nurse') || allowed.includes('charge_nurse')) {
-      if (['nurse', 'triage_nurse', 'charge_nurse'].includes(user.role)) {
-        return true;
-      }
-    }
     return allowed.includes(user.role);
   };
 
@@ -166,6 +186,7 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!user,
     login,
+    register,
     logout,
     switchDemoRole,
     hasRole,

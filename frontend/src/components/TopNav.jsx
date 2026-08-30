@@ -48,9 +48,7 @@ const FACILITIES = [
 ];
 
 const ROLE_DISPLAY = {
-  nurse: { label: 'Emergency Nurse', bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', icon: Stethoscope },
-  triage_nurse: { label: 'Emergency Nurse', bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', icon: Stethoscope },
-  charge_nurse: { label: 'Emergency Nurse', bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', icon: Stethoscope },
+  nurse: { label: 'Nurse', bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', icon: Stethoscope },
   admin: { label: 'Administrator', bg: '#faf5ff', border: '#e9d5ff', text: '#7c3aed', icon: ShieldCheck },
 };
 

@@ -263,11 +263,7 @@ def require_role(allowed_roles: List[str]):
         if current_user.role == "admin":
             return current_user
 
-        effective_roles = set(allowed_roles)
-        if "nurse" in effective_roles or "charge_nurse" in effective_roles or "triage_nurse" in effective_roles:
-            effective_roles.update(["nurse", "triage_nurse", "charge_nurse"])
-
-        if current_user.role not in effective_roles:
+        if current_user.role not in allowed_roles:
             # Record unauthorized attempt in Audit Trail
             record_audit(
                 db=db,
