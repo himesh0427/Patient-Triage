@@ -1,0 +1,821 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { triageApi, patientsApi } from '../services/api';
+import TopNav from '../components/TopNav';
+import EsiSquareBadge from '../components/EsiSquareBadge';
+import VitalField from '../components/VitalField';
+import { validateAllVitals } from '../services/vitals';
+import {
+  Search, UserPlus, UserCheck, AlertTriangle, ShieldCheck,
+  Lock, X, Plus, Sparkles, ArrowRight, ArrowLeft, HeartPulse,
+  CheckCircle2, Activity
+} from 'lucide-react';
+
+const generatePatientId = () => `P-${Math.floor(100 + Math.random() * 900)}`;
+const generateVisitId = () => `V-${Math.floor(100 + Math.random() * 900)}`;
+
+export default function PatientIntake() {
+  const navigate = useNavigate();
+
+  // Mode: 'select' (Section 1) | 'returning' (Section 2A) | 'new' (Section 2B) | 'triage_assessment' (Section 3)
+  const [mode, setMode] = useState('new'); // default to 'new' or selection
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchPerformed, setSearchPerformed] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+
+  // New Patient Form State
+  const [patientId] = useState(generatePatientId());
+  const [visitId] = useState(generateVisitId());
+  const [fullName, setFullName] = useState('');
+  const [age, setAge] = useState('');
+  const [ageInMonths, setAgeInMonths] = useState('');
+  const [gender, setGender] = useState('Male');
+  const [dob, setDob] = useState('');
+  const [phone, setPhone] = useState('');
+  const [medicalHistory, setMedicalHistory] = useState([]);
+  const [newConditionInput, setNewConditionInput] = useState('');
+  const [showAddCondition, setShowAddCondition] = useState(false);
+  const [hipaaConsent, setHipaaConsent] = useState(false);
+
+  // Triage Assessment Stage (Vitals & Symptoms)
+  const [triageStage, setTriageStage] = useState(false);
+  const [chiefComplaint, setChiefComplaint] = useState('');
+  const [vitals, setVitals] = useState({
+    hr: '',
+    sbp: '',
+    dbp: '',
+    rr: '',
+    temp: '',
+    spo2: '',
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Common quick-pick chronic conditions
+  const commonConditions = ['Hypertension', 'Type 2 Diabetes', 'Asthma', 'CAD / Prior MI', 'CKD', 'COPD'];
+
+  // Handle Search for Returning Patients
+  const handleSearch = async (e) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setLoading(true);
+    setError(null);
+    setSearchPerformed(true);
+    try {
+      const res = await patientsApi.searchPatients(searchQuery.trim());
+      setSearchResults(res.data.results || []);
+    } catch (err) {
+      console.error("Patient search error:", err);
+      setError("Failed to search patient database.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Select a returning patient
+  const handleSelectPatient = (p) => {
+    setSelectedPatient(p);
+    setFullName(p.name);
+    setAge(p.age.toString());
+    setGender(p.gender || 'Other');
+    setMedicalHistory(p.has_history ? ['Hypertension', 'Prior ER Visit'] : []);
+    setHipaaConsent(false);
+  };
+
+  // Auto-calculate age from DOB
+  const handleDobChange = (e) => {
+    const val = e.target.value;
+    setDob(val);
+    if (val) {
+      const birthDate = new Date(val);
+      const diff = Date.now() - birthDate.getTime();
+      const ageDate = new Date(diff);
+      const calculatedAge = Math.abs(ageDate.getUTCFullYear() - 1970);
+      setAge(calculatedAge.toString());
+    }
+  };
+
+  // Medical History chips management
+  const addCondition = (condition) => {
+    const trimmed = condition.trim();
+    if (trimmed && !medicalHistory.includes(trimmed)) {
+      setMedicalHistory([...medicalHistory, trimmed]);
+      setNewConditionInput('');
+      setShowAddCondition(false);
+    }
+  };
+
+  const removeCondition = (conditionToRemove) => {
+    setMedicalHistory(medicalHistory.filter((c) => c !== conditionToRemove));
+  };
+
+  // EDGE CASE: Quick Unresponsive / Critical Bypass
+  const handleUnresponsiveBypass = async () => {
+    if (!window.confirm("Fast-track patient for IMMEDIATE resuscitation (ESI 1)? This bypasses registration forms.")) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await triageApi.bypass({
+        name: fullName || 'Emergency Unresponsive Patient',
+        age: age ? parseInt(age, 10) : 45,
+        gender: gender || 'Other',
+        condition: 'Immediate Life Threat / Unresponsive / Resuscitation',
+      });
+      navigate(`/visit/${res.data.visit_id}`);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to trigger emergency bypass.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Proceed from Demographics to Clinical Triage Vitals & Symptoms
+  const handleProceedToTriage = (e) => {
+    if (e) e.preventDefault();
+    if (!hipaaConsent) {
+      setError("Patient / guardian consent for triage data processing (HIPAA) is required.");
+      return;
+    }
+    if (mode === 'new' && (!fullName.trim() || !age)) {
+      setError("Please provide patient full name and age.");
+      return;
+    }
+    setError(null);
+    setTriageStage(true);
+  };
+
+  // Final Submission to LightGBM AI Triage
+  const handleFinalSubmit = async (e) => {
+    e.preventDefault();
+    if (!chiefComplaint.trim()) {
+      setError("Please describe the patient's chief complaint / symptoms.");
+      return;
+    }
+
+    const errors = validateAllVitals(vitals);
+    if (Object.keys(errors).length > 0) {
+      setError('Some vital signs are outside safe input limits. Please correct them before continuing.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const payload = {
+        patient_id: selectedPatient?.id || undefined,
+        name: fullName,
+        age: parseInt(age, 10) || 30,
+        gender: gender,
+        has_history: medicalHistory.length > 0,
+        symptom_text: chiefComplaint.trim(),
+        vitals: {
+          hr: vitals.hr ? parseFloat(vitals.hr) : null,
+          sbp: vitals.sbp ? parseFloat(vitals.sbp) : null,
+          dbp: vitals.dbp ? parseFloat(vitals.dbp) : null,
+          rr: vitals.rr ? parseFloat(vitals.rr) : null,
+          temp: vitals.temp ? parseFloat(vitals.temp) : null,
+          spo2: vitals.spo2 ? parseFloat(vitals.spo2) : null,
+        },
+      };
+
+      const res = await triageApi.predictOneShot(payload);
+      navigate(`/visit/${res.data.visit_id}`);
+    } catch (err) {
+      console.error("Triage prediction failed:", err);
+      setError(err.response?.data?.detail || "Failed to submit patient triage.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setMode('select');
+    setSelectedPatient(null);
+    setFullName('');
+    setAge('');
+    setDob('');
+    setPhone('');
+    setMedicalHistory([]);
+    setHipaaConsent(false);
+    setTriageStage(false);
+    setError(null);
+  };
+
+  return (
+    <>
+      <TopNav
+        title="Patient Registration & Intake"
+        subtitle="ED Patient Intake, Demographic Verification & Clinical Assessment"
+      />
+
+      <div className="page-container">
+        {/* Quick Emergency Red Button at top for Unresponsive Patients */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+          <button
+            type="button"
+            onClick={handleUnresponsiveBypass}
+            disabled={loading}
+            className="btn-blue"
+            style={{
+              background: '#ef4444',
+              borderColor: '#dc2626',
+              color: '#ffffff',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+              padding: '0.65rem 1.25rem'
+            }}
+          >
+            🚨 Unresponsive / Critical Patient (Fast-Track ESI 1)
+          </button>
+        </div>
+
+        {error && (
+          <div className="alert-banner alert-danger" style={{ marginBottom: '1.25rem' }}>
+            <AlertTriangle size={20} style={{ flexShrink: 0 }} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {!triageStage ? (
+          <div className="ui-card">
+            {/* SECTION 1: PATIENT TYPE SELECTION (Two large buttons side by side) */}
+            <div style={{ marginBottom: '2rem' }}>
+              <label className="form-label-clean" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                Select Registration Type
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                {/* 🔍 Returning Patient Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('returning');
+                    setSelectedPatient(null);
+                    setError(null);
+                  }}
+                  style={{
+                    padding: '1.5rem 1.25rem',
+                    borderRadius: 'var(--radius-lg)',
+                    border: mode === 'returning' ? '2px solid var(--primary-blue)' : '1px solid var(--card-border)',
+                    background: mode === 'returning' ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    transition: 'all 0.15s ease',
+                    boxShadow: mode === 'returning' ? '0 0 0 3px rgba(29, 78, 216, 0.12)' : 'none'
+                  }}
+                >
+                  <div style={{
+                    width: '46px', height: '46px', borderRadius: '50%',
+                    background: mode === 'returning' ? 'var(--primary-blue)' : '#f1f5f9',
+                    color: mode === 'returning' ? '#ffffff' : 'var(--text-muted)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Search size={22} />
+                  </div>
+                  <strong style={{ fontSize: '1.05rem', color: mode === 'returning' ? 'var(--primary-blue)' : 'var(--text-title)' }}>
+                    🔍 Returning Patient
+                  </strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Lookup historical MRN &amp; prior visit records
+                  </span>
+                </button>
+
+                {/* ➕ New Patient Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('new');
+                    setSelectedPatient(null);
+                    setError(null);
+                  }}
+                  style={{
+                    padding: '1.5rem 1.25rem',
+                    borderRadius: 'var(--radius-lg)',
+                    border: mode === 'new' ? '2px solid var(--primary-blue)' : '1px solid var(--card-border)',
+                    background: mode === 'new' ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    transition: 'all 0.15s ease',
+                    boxShadow: mode === 'new' ? '0 0 0 3px rgba(29, 78, 216, 0.12)' : 'none'
+                  }}
+                >
+                  <div style={{
+                    width: '46px', height: '46px', borderRadius: '50%',
+                    background: mode === 'new' ? 'var(--primary-blue)' : '#f1f5f9',
+                    color: mode === 'new' ? '#ffffff' : 'var(--text-muted)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <UserPlus size={22} />
+                  </div>
+                  <strong style={{ fontSize: '1.05rem', color: mode === 'new' ? 'var(--primary-blue)' : 'var(--text-title)' }}>
+                    ➕ New Patient
+                  </strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Register a new ER arrival &amp; auto-generate IDs
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* SECTION 2A: RETURNING PATIENT SEARCH */}
+            {mode === 'returning' && (
+              <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-title)', marginBottom: '1rem' }}>
+                  Returning Patient Lookup
+                </h3>
+
+                {/* Search Bar */}
+                <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }} />
+                    <input
+                      type="text"
+                      className="input-clean"
+                      placeholder="Enter Patient ID, Name, or Phone Number"
+                      style={{ paddingLeft: '2.4rem' }}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <button type="submit" className="btn-blue" disabled={loading}>
+                    <Search size={16} /> {loading ? 'Searching...' : 'Search'}
+                  </button>
+                </form>
+
+                {/* Search Results Area */}
+                {searchPerformed && !selectedPatient && (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    {searchResults.length === 0 ? (
+                      <div style={{
+                        background: '#f8fafc',
+                        border: '1px solid var(--card-border)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1.5rem',
+                        textAlign: 'center'
+                      }}>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                          No patient found. Create new patient?
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-blue"
+                          onClick={() => setMode('new')}
+                        >
+                          <Plus size={16} /> Create New Patient
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                          Matching Patient Records ({searchResults.length}):
+                        </div>
+                        {searchResults.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => handleSelectPatient(p)}
+                            style={{
+                              padding: '1rem',
+                              borderRadius: 'var(--radius-md)',
+                              border: '1px solid var(--card-border)',
+                              background: '#ffffff',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary-blue)'}
+                            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--card-border)'}
+                          >
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <strong style={{ fontSize: '0.95rem', color: 'var(--text-title)' }}>{p.name}</strong>
+                                <span className="status-pill in-room">P-{p.id}</span>
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                Age {p.age} · {p.gender} · Last Visit: {p.has_history ? 'Recent ER Record on file' : 'First Visit'}
+                              </div>
+                            </div>
+                            <button type="button" className="btn-white" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+                              Select Patient →
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Selected Patient Summary Card */}
+                {selectedPatient && (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '1.5rem',
+                    marginBottom: '1.5rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary-blue)' }}>
+                          Selected Patient Record
+                        </span>
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-title)', marginTop: '0.2rem' }}>
+                          {selectedPatient.name}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-white"
+                        style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem' }}
+                        onClick={() => setSelectedPatient(null)}
+                      >
+                        Change
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
+                      <div style={{ background: '#ffffff', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Patient ID</div>
+                        <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>P-{selectedPatient.id}</div>
+                      </div>
+
+                      <div style={{ background: '#ffffff', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Age / Gender</div>
+                        <div style={{ fontWeight: 700 }}>{selectedPatient.age} yrs · {selectedPatient.gender}</div>
+                      </div>
+
+                      <div style={{ background: '#ffffff', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Current Visit ID</div>
+                        <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary-blue)' }}>{visitId}</div>
+                      </div>
+
+                      <div style={{ background: '#ffffff', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Registration Time</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.8rem' }}>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      </div>
+                    </div>
+
+                    {/* Medical History Panel */}
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                        Medical History
+                      </div>
+                      {medicalHistory.length > 0 ? (
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          {medicalHistory.map((c, i) => (
+                            <span key={i} className="status-pill in-room">{c}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="status-pill discharged">Zero-History Patient</span>
+                      )}
+                    </div>
+
+                    {/* Required Consent Checkbox */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.75rem', background: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)' }}>
+                      <input
+                        type="checkbox"
+                        id="hipaa-consent-returning"
+                        checked={hipaaConsent}
+                        onChange={(e) => setHipaaConsent(e.target.checked)}
+                        style={{ width: '18px', height: '18px', accentColor: 'var(--primary-blue)', cursor: 'pointer' }}
+                        required
+                      />
+                      <label htmlFor="hipaa-consent-returning" style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-title)', cursor: 'pointer' }}>
+                        Patient consents to use of data for triage (HIPAA compliance) <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                    </div>
+
+                    {/* Proceed Button */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+                      <button
+                        type="button"
+                        className="btn-blue"
+                        onClick={handleProceedToTriage}
+                      >
+                        Proceed to Triage →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECTION 2B: NEW PATIENT REGISTRATION FORM */}
+            {mode === 'new' && (
+              <form onSubmit={handleProceedToTriage} style={{ borderTop: '1px solid var(--card-border)', paddingTop: '1.5rem' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-title)', marginBottom: '1.25rem' }}>
+                  New Patient Registration
+                </h3>
+
+                {/* Auto-generated IDs (Patient ID & Visit ID) - Read-only, grayed out with lock icon */}
+                <div className="form-grid-2" style={{ marginBottom: '1.25rem' }}>
+                  <div className="form-group-clean">
+                    <label className="form-label-clean">Patient ID (Auto-Generated)</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        className="input-clean"
+                        value={patientId}
+                        readOnly
+                        disabled
+                        style={{ background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed', paddingLeft: '2.2rem', fontFamily: 'var(--font-mono)', fontWeight: 700 }}
+                      />
+                      <Lock size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    </div>
+                  </div>
+
+                  <div className="form-group-clean">
+                    <label className="form-label-clean">Visit ID (Auto-Generated)</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        className="input-clean"
+                        value={visitId}
+                        readOnly
+                        disabled
+                        style={{ background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed', paddingLeft: '2.2rem', fontFamily: 'var(--font-mono)', fontWeight: 700 }}
+                      />
+                      <Lock size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Full Name */}
+                <div className="form-group-clean">
+                  <label className="form-label-clean">Full Name <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    className="input-clean"
+                    placeholder="John Smith"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Age & Age in months if < 1 */}
+                <div className="form-grid-2">
+                  <div className="form-group-clean">
+                    <label className="form-label-clean">Age (Years) <span className="required">*</span></label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="120"
+                      className="input-clean"
+                      placeholder="45"
+                      value={age}
+                      onChange={(e) => setAge(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  {parseFloat(age) < 1 && age !== '' && (
+                    <div className="form-group-clean animate-fadeIn">
+                      <label className="form-label-clean">Age in Months (Pediatric Infant)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="11"
+                        className="input-clean"
+                        placeholder="e.g. 6"
+                        value={ageInMonths}
+                        onChange={(e) => setAgeInMonths(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Gender */}
+                  <div className="form-group-clean">
+                    <label className="form-label-clean">Gender <span className="required">*</span></label>
+                    <select
+                      className="input-clean"
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+
+
+                {/* Known Medical History (if any) with chips */}
+                <div className="form-group-clean" style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <label className="form-label-clean" style={{ margin: 0 }}>
+                      Known Medical History (if any)
+                    </label>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>
+                      Leave empty if unknown
+                    </span>
+                  </div>
+
+                  {/* Removable chips */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', minHeight: '32px' }}>
+                    {medicalHistory.map((condition) => (
+                      <span
+                        key={condition}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                          padding: '3px 10px',
+                          borderRadius: '9999px',
+                          fontSize: '0.8rem',
+                          fontWeight: 600
+                        }}
+                      >
+                        {condition}
+                        <X
+                          size={13}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => removeCondition(condition)}
+                        />
+                      </span>
+                    ))}
+                    {medicalHistory.length === 0 && (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontStyle: 'italic', alignSelf: 'center' }}>
+                        No conditions added yet
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Add Condition Buttons / Input */}
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {commonConditions.map((cond) => (
+                      <button
+                        key={cond}
+                        type="button"
+                        onClick={() => addCondition(cond)}
+                        className="btn-white"
+                        style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }}
+                      >
+                        + {cond}
+                      </button>
+                    ))}
+
+                    {showAddCondition ? (
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <input
+                          type="text"
+                          className="input-clean"
+                          placeholder="Type condition..."
+                          style={{ width: '180px', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                          value={newConditionInput}
+                          onChange={(e) => setNewConditionInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCondition(newConditionInput); } }}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="btn-blue"
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem' }}
+                          onClick={() => addCondition(newConditionInput)}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCondition(true)}
+                        className="btn-white"
+                        style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary-blue)' }}
+                      >
+                        + Add Custom Condition
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Consent Checkbox (Required) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.85rem 1rem', background: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)', marginBottom: '1.75rem' }}>
+                  <input
+                    type="checkbox"
+                    id="hipaa-consent-new"
+                    checked={hipaaConsent}
+                    onChange={(e) => setHipaaConsent(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--primary-blue)', cursor: 'pointer' }}
+                    required
+                  />
+                  <label htmlFor="hipaa-consent-new" style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-title)', cursor: 'pointer' }}>
+                    Patient consents to use of data for triage (HIPAA) <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                </div>
+
+                {/* Action Buttons: [ Cancel ] [ Save & Proceed to Triage → ] */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid var(--card-border)', paddingTop: '1.25rem' }}>
+                  <button
+                    type="button"
+                    className="btn-white"
+                    onClick={handleCancel}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-blue"
+                  >
+                    Save &amp; Proceed to Triage →
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        ) : (
+          /* SECTION 3: TRIAGE CLINICAL ASSESSMENT (Vitals & Symptoms) */
+          <form onSubmit={handleFinalSubmit} className="ui-card animate-fadeIn">
+            {error && (
+              <div className="alert-banner alert-danger" style={{ marginBottom: '1.25rem' }}>
+                <AlertTriangle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--card-border)', paddingBottom: '1rem' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--primary-blue)' }}>
+                  Step 2 of 2: Clinical Assessment
+                </span>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-title)', marginTop: '0.2rem' }}>
+                  {fullName} ({age} yrs · {gender})
+                </h3>
+              </div>
+              <span className="status-pill in-room">{visitId}</span>
+            </div>
+
+            {/* Chief Complaint */}
+            <div className="form-group-clean">
+              <label className="form-label-clean">Chief Complaint &amp; Clinical Presentation <span className="required">*</span></label>
+              <textarea
+                className="input-clean"
+                rows={3}
+                placeholder="e.g. 48yo male presenting with sudden onset chest pressure radiating to left shoulder, mild diaphoresis..."
+                value={chiefComplaint}
+                onChange={(e) => setChiefComplaint(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+
+            {/* Vital Signs Grid */}
+            <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-title)', marginBottom: '0.85rem' }}>
+                Measured Vital Signs
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '0.5rem' }}>
+                <VitalField code="hr" value={vitals.hr} onChange={(c, v) => setVitals((prev) => ({ ...prev, [c]: v }))} />
+                <VitalField code="sbp" value={vitals.sbp} onChange={(c, v) => setVitals((prev) => ({ ...prev, [c]: v }))} />
+                <VitalField code="dbp" value={vitals.dbp} onChange={(c, v) => setVitals((prev) => ({ ...prev, [c]: v }))} />
+                <VitalField code="spo2" value={vitals.spo2} onChange={(c, v) => setVitals((prev) => ({ ...prev, [c]: v }))} />
+                <VitalField code="rr" value={vitals.rr} onChange={(c, v) => setVitals((prev) => ({ ...prev, [c]: v }))} />
+                <VitalField code="temp" value={vitals.temp} onChange={(c, v) => setVitals((prev) => ({ ...prev, [c]: v }))} />
+              </div>
+            </div>
+
+            {/* Back & Submit Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--card-border)', paddingTop: '1.25rem' }}>
+              <button
+                type="button"
+                className="btn-white"
+                onClick={() => setTriageStage(false)}
+              >
+                <ArrowLeft size={16} /> Back to Registration
+              </button>
+
+              <button
+                type="submit"
+                className="btn-blue"
+                disabled={loading}
+              >
+                <Sparkles size={16} />
+                {loading ? 'Evaluating AI Triage...' : 'Submit & Compute LightGBM ESI'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </>
+  );
+}

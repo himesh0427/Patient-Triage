@@ -1,90 +1,68 @@
-
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Activity, Users, Settings as SettingsIcon, LayoutDashboard, PlusCircle, ShieldAlert } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { systemApi, triageApi, alertsApi } from './services/api';
+import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
-import TriageWizard from './pages/TriageWizard';
-import Queue from './pages/Queue';
+import TriageQueue from './pages/TriageQueue';
+import PatientIntake from './pages/PatientIntake';
+import PatientDetails from './pages/PatientDetails';
+import PatientsList from './pages/PatientsList';
+import Reports from './pages/Reports';
+import Alerts from './pages/Alerts';
+import AuditLogPage from './pages/AuditLogPage';
+import SettingsPage from './pages/SettingsPage';
+import HospitalConfig from './pages/HospitalConfig';
 
-function Sidebar() {
-  const location = useLocation();
-  const isActive = (path) => location.pathname === path ? 'active' : '';
+export default function App() {
+  const [stats, setStats] = useState(null);
+  const [queueCount, setQueueCount] = useState(0);
+  const [surgeMode, setSurgeMode] = useState(false);
+  const [alertsCount, setAlertsCount] = useState(0);
 
-  return (
-    <div className="sidebar">
-      <div className="sidebar-brand">
-        <ShieldAlert size={28} color="#3b82f6" />
-        <div>
-          <div>PatientTriage.ai</div>
-          <div style={{fontSize: '0.75rem', color: '#94a3b8', fontWeight: 400}}>ED North Wing</div>
-        </div>
-      </div>
-      <div className="nav-links">
-        <Link to="/" className={`nav-link ${isActive('/')}`}>
-          <LayoutDashboard size={20} /> Dashboard
-        </Link>
-        <Link to="/triage" className={`nav-link ${isActive('/triage')}`}>
-          <PlusCircle size={20} /> Patient Intake
-        </Link>
-        <Link to="/queue" className={`nav-link ${isActive('/queue')}`}>
-          <Users size={20} /> Live Queue
-        </Link>
-        
-        {/* Placeholder disabled links for MVP */}
-        <div style={{opacity: 0.5, cursor: 'not-allowed', padding: '1rem 1.5rem', color: 'var(--text-sidebar)', display: 'flex', gap: '0.75rem', alignItems: 'center', fontWeight: 500}}>
-          <Activity size={20} /> Surge Sim (Disabled)
-        </div>
-        <div style={{opacity: 0.5, cursor: 'not-allowed', padding: '1rem 1.5rem', color: 'var(--text-sidebar)', display: 'flex', gap: '0.75rem', alignItems: 'center', fontWeight: 500}}>
-          <SettingsIcon size={20} /> Settings (Disabled)
-        </div>
-      </div>
-    </div>
-  );
-}
+  const fetchGlobalMetrics = async () => {
+    try {
+      const [statsRes, queueRes, alertsRes] = await Promise.all([
+        systemApi.getStats(),
+        triageApi.getQueue(),
+        alertsApi.getAll(),
+      ]);
+      setStats(statsRes.data);
+      setQueueCount(queueRes.data.queue?.length || 0);
+      setSurgeMode(statsRes.data.surge_mode || queueRes.data.surge_mode || false);
+      setAlertsCount(alertsRes.data?.total || 0);
+    } catch (err) {
+      console.error("Global state sync error:", err);
+    }
+  };
 
-function TopBar() {
-  const [time, setTime] = useState(new Date().toLocaleTimeString());
-  
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
-    return () => clearInterval(timer);
+    fetchGlobalMetrics();
+    const interval = setInterval(fetchGlobalMetrics, 10000);
+    return () => clearInterval(interval);
   }, []);
 
-  return (
-    <div className="top-bar">
-      <div style={{fontWeight: 600, color: 'var(--text-muted)'}}>{new Date().toLocaleDateString()}</div>
-      <div style={{display: 'flex', gap: '2rem', alignItems: 'center'}}>
-        <div style={{fontWeight: 700, fontSize: '1.25rem'}}>{time}</div>
-        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-          <div style={{width: '32px', height: '32px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'}}>RN</div>
-          <div>
-            <div style={{fontWeight: 600, fontSize: '0.9rem'}}>Jane Smith, RN</div>
-            <div style={{color: 'var(--success)', fontSize: '0.75rem', fontWeight: 600}}>● Online</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+  const alertsCountDerived = alertsCount || (stats?.retriage_needed || 0) + (stats?.low_confidence_active || 0) + (surgeMode ? 1 : 0);
 
-function App() {
   return (
     <Router>
-      <div className="app-container">
-        <Sidebar />
+      <div className="app-layout">
+        {/* Modern Dark Sidebar matching screenshot */}
+        <Sidebar queueCount={queueCount} alertsCount={alertsCountDerived} surgeMode={surgeMode} />
         <div className="main-wrapper">
-          <TopBar />
-          <div className="main-content">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/triage" element={<TriageWizard />} />
-              <Route path="/queue" element={<Queue />} />
-            </Routes>
-          </div>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/queue" element={<TriageQueue />} />
+            <Route path="/intake" element={<PatientIntake />} />
+            <Route path="/patients" element={<PatientsList />} />
+            <Route path="/visit/:id" element={<PatientDetails />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/audit" element={<AuditLogPage />} />
+            <Route path="/hospital-config" element={<HospitalConfig />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
         </div>
       </div>
     </Router>
   );
 }
-
-export default App;

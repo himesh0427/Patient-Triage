@@ -5,7 +5,51 @@ from ..models import Patient, Visit
 
 router = APIRouter(prefix="/patients", tags=["Patients"])
 
-@router.get("/{patient_id}")
+@router.get("/search/")
+def search_patients(q: str = "", db: Session = Depends(get_db)):
+    """Search patients by Name, Patient ID (e.g., P-142 or 142), or MRN.
+    NOTE: Defined before /{patient_id} so FastAPI never shadows this route."""
+    from sqlalchemy import or_
+    if not q or len(q.strip()) == 0:
+        return {"results": []}
+    
+    clean_q = q.strip()
+    
+    # Extract numbers if searching by P-142 or MRN-123456
+    id_num = None
+    cleaned_digits = "".join([c for c in clean_q if c.isdigit()])
+    if cleaned_digits:
+        try:
+            id_num = int(cleaned_digits)
+        except ValueError:
+            pass
+
+    query = db.query(Patient)
+    if id_num is not None:
+        query = query.filter(or_(Patient.id == id_num, Patient.name.ilike(f"%{clean_q}%")))
+    else:
+        query = query.filter(Patient.name.ilike(f"%{clean_q}%"))
+        
+    patients = query.limit(20).all()
+    
+    results = []
+    for p in patients:
+        latest_visit = db.query(Visit).filter(Visit.patient_id == p.id).order_by(Visit.arrival_time.desc()).first()
+        results.append({
+            "id": p.id,
+            "patient_code": f"P-{p.id}",
+            "name": p.name,
+            "age": p.age,
+            "gender": p.gender,
+            "has_history": p.has_history,
+            "latest_visit_id": latest_visit.id if latest_visit else None,
+            "latest_arrival_time": str(latest_visit.arrival_time) if latest_visit else None
+        })
+        
+    return {"results": results}
+
+
+@router.get("/{patient_id:int}")
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
     """Fetch an existing patient by ID (for auto-fill in the frontend)."""
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
@@ -23,29 +67,6 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
         "has_history": patient.has_history,
         "prior_visits": visit_count,
         "created_at": str(patient.created_at)
-    }
-
-@router.get("/search/")
-def search_patients(q: str = "", db: Session = Depends(get_db)):
-    """Search patients by name (for the 'Existing Patient' flow)."""
-    if not q or len(q) < 2:
-        return {"results": []}
-    
-    patients = db.query(Patient).filter(
-        Patient.name.ilike(f"%{q}%")
-    ).limit(20).all()
-    
-    return {
-        "results": [
-            {
-                "id": p.id,
-                "name": p.name,
-                "age": p.age,
-                "gender": p.gender,
-                "has_history": p.has_history,
-            }
-            for p in patients
-        ]
     }
 
 @router.get("/")
