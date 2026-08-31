@@ -41,3 +41,5 @@ MANIFEST
 
 # Data files
 *.csv
+
+triage.db
