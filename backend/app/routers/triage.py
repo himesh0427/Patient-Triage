@@ -37,11 +37,16 @@ def _resolve_patient(patient_id, name, age, gender, has_history, db):
 
 
 def _build_action(esi):
-    if esi == 1: return "Immediate Resuscitation"
-    elif esi == 2: return "Immediate Bed"
-    elif esi == 3: return "Urgent - Monitor Queue"
-    elif esi == 4: return "Semi-Urgent - Standard Queue"
-    else: return "Non-Urgent - Standard Queue"
+    if esi == 1:
+        return "Immediate Resuscitation"
+    elif esi == 2:
+        return "Immediate Bed Allocation"
+    elif esi == 3:
+        return "Urgent ED Bed Queue"
+    elif esi == 4:
+        return "Fast-Track Ambulatory Clinic" if settings.SURGE_MODE else "Semi-Urgent Queue"
+    else:
+        return "Fast-Track Outpatient Clinic" if settings.SURGE_MODE else "Non-Urgent Queue"
 
 
 def _build_alert(confidence, esi, source):
@@ -256,7 +261,11 @@ def predict_patient(input: TriageInput, db: Session = Depends(get_db)):
         cc_vector=cc_vector,
         raw_text=input.symptom_text
     )
-    
+
+    if confidence < settings.CONFIDENCE_THRESHOLD and esi > 2:
+        reasons.insert(0, f"Uncertainty Safety Escalation: AI confidence ({int(confidence*100)}%) < threshold — Safety bias escalated ESI {esi} -> ESI {esi-1}")
+        esi = max(1, esi - 1)
+
     visit.esi_predicted = esi
     visit.esi_final = esi
     visit.confidence_score = confidence

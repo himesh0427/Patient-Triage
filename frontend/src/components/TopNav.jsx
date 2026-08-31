@@ -5,7 +5,7 @@ import {
   ShieldCheck, ClipboardCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { hospitalConfigApi } from '../services/api';
+import { hospitalConfigApi, systemApi } from '../services/api';
 import { useAuth, DEMO_CREDENTIALS } from '../context/AuthContext';
 
 const FACILITIES = [
@@ -383,6 +383,37 @@ export default function TopNav({
             </div>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await systemApi.toggleSurge();
+              window.location.reload();
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+          title={surgeMode ? 'Deactivate 3x Surge Protocol' : 'Activate 3x Surge Protocol (Simulate Emergency Volume)'}
+          style={{
+            padding: '0.38rem 0.75rem',
+            fontSize: '0.74rem',
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            borderRadius: 'var(--radius-md)',
+            background: surgeMode ? '#ef4444' : '#fef2f2',
+            color: surgeMode ? '#ffffff' : '#dc2626',
+            border: surgeMode ? '1px solid #dc2626' : '1px solid #fecaca',
+            cursor: 'pointer',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Radio size={14} className={surgeMode ? 'pulse-alert' : ''} />
+          {surgeMode ? '3× SURGE ACTIVE' : 'SIMULATE 3× SURGE'}
+        </button>
 
         <button
           className="icon-button"
