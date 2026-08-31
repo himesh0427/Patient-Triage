@@ -10,6 +10,43 @@ const api = axios.create({
   timeout: 10000,
 });
 
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("pt_auth_token") || sessionStorage.getItem("pt_auth_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      const currentPath = window.location.pathname;
+      if (currentPath !== "/login") {
+        localStorage.removeItem("pt_auth_token");
+        localStorage.removeItem("pt_auth_user");
+        sessionStorage.removeItem("pt_auth_token");
+        sessionStorage.removeItem("pt_auth_user");
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export const authApi = {
+  login: (payload) => api.post("/auth/login", payload),
+  register: (payload) => api.post("/auth/register", payload),
+  logout: () => api.post("/auth/logout"),
+  getMe: () => api.get("/auth/me"),
+  getUsers: () => api.get("/auth/users"),
+  updateRole: (userId, role) => api.put(`/auth/users/${userId}/role`, { role }),
+};
+
 export const systemApi = {
   getRoot: () => api.get("/"),
   getConfig: () => api.get("/config"),
@@ -59,4 +96,3 @@ export const hospitalConfigApi = {
 };
 
 export default api;
-

@@ -103,7 +103,6 @@ export default function TriageQueue() {
       <div className="page-container">
         <SurgeBanner active={surgeMode} />
 
-        {/* Filter Chips */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             <div className="filter-chip-group">
@@ -134,7 +133,6 @@ export default function TriageQueue() {
           </button>
         </div>
 
-        {/* Queue Table */}
         <div className="ui-card">
           <div style={{ overflowX: 'auto' }}>
             <table className="clean-table">
@@ -228,7 +226,6 @@ export default function TriageQueue() {
             </table>
           </div>
 
-          {/* Table Footer */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--card-border)' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>
               Last updated: {lastUpdated}

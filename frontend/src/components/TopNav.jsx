@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, ChevronDown, Radio, Check, Building2, ExternalLink } from 'lucide-react';
+import {
+  Bell, ChevronDown, Radio, Check, Building2, ExternalLink,
+  Shield, Stethoscope, Compass, User, LogOut, KeyRound, Settings,
+  ShieldCheck, ClipboardCheck
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { hospitalConfigApi } from '../services/api';
+import { hospitalConfigApi, systemApi } from '../services/api';
+import { useAuth, DEMO_CREDENTIALS } from '../context/AuthContext';
 
 const FACILITIES = [
   {
@@ -9,26 +14,50 @@ const FACILITIES = [
     label: 'ED North Wing',
     fullName: 'Urban Trauma Center',
     badge: 'Level 1 Trauma',
-    desc: 'High volume · 5m ESI-2 threshold · Full subspecialties',
+    badgeTone: '#ef4444',
+    badgeBg: '#fef2f2',
+    badgeBorder: '#fecaca',
+    desc: 'High volume tertiary hospital · 5m ESI-2 threshold · 24/7 trauma bay',
     hospitalType: 'URBAN',
+    icon: Shield,
   },
   {
     id: 'community',
     label: 'Community Emergency Unit',
     fullName: 'Community Hospital',
     badge: 'General ED',
-    desc: 'Standard volume · 10m ESI-2 threshold · Core specialties',
+    badgeTone: '#2563eb',
+    badgeBg: '#eff6ff',
+    badgeBorder: '#bfdbfe',
+    desc: 'Standard volume · 10m ESI-2 threshold · Core medical & surgical',
     hospitalType: 'COMMUNITY',
+    icon: Stethoscope,
   },
   {
     id: 'rural_ed',
     label: 'Rural Access Unit',
     fullName: 'Rural Emergency Dept',
     badge: 'Critical Access',
-    desc: 'Tele-triage · 15m ESI-2 threshold · 3-Tier rural mode',
+    badgeTone: '#d97706',
+    badgeBg: '#fffbeb',
+    badgeBorder: '#fde68a',
+    desc: 'Tele-triage · 15m ESI-2 threshold · 3-Tier rural acuity mapping',
     hospitalType: 'RURAL',
+    icon: Compass,
   },
 ];
+
+const ROLE_DISPLAY = {
+  nurse: { label: 'Nurse', bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', icon: Stethoscope },
+  admin: { label: 'Administrator', bg: '#faf5ff', border: '#e9d5ff', text: '#7c3aed', icon: ShieldCheck },
+};
+
+function getInitials(name) {
+  if (!name) return 'ST';
+  const parts = name.replace(/^(Dr\.|RN|BSN|MD|,)\s*/i, '').trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export default function TopNav({
   title,
@@ -39,12 +68,16 @@ export default function TopNav({
   hospitalName = null,
 }) {
   const navigate = useNavigate();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { user, logout, switchDemoRole, hasRole } = useAuth();
+
+  const [facilityOpen, setFacilityOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [currentProfile, setCurrentProfile] = useState('urban_trauma');
   const [switching, setSwitching] = useState(false);
-  const dropdownRef = useRef(null);
 
-  // Fetch active configuration profile on mount
+  const facilityRef = useRef(null);
+  const profileRef = useRef(null);
+
   useEffect(() => {
     let isMounted = true;
     hospitalConfigApi.getConfig()
@@ -58,20 +91,20 @@ export default function TopNav({
     return () => { isMounted = false; };
   }, []);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
+      if (facilityRef.current && !facilityRef.current.contains(event.target)) {
+        setFacilityOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setProfileOpen(false);
       }
     }
-    if (dropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [dropdownOpen]);
+  }, []);
 
   const activeFacility = FACILITIES.find((f) => f.id === currentProfile) || (
     hospitalType === 'RURAL' ? FACILITIES[2] : FACILITIES[0]
@@ -79,7 +112,7 @@ export default function TopNav({
 
   const handleSelectFacility = async (facility) => {
     if (facility.id === currentProfile && !switching) {
-      setDropdownOpen(false);
+      setFacilityOpen(false);
       return;
     }
 
@@ -87,8 +120,7 @@ export default function TopNav({
     try {
       await hospitalConfigApi.applyProfile(facility.id);
       setCurrentProfile(facility.id);
-      setDropdownOpen(false);
-      // Reload window to immediately sync all queue timers, hospital thresholds & stats
+      setFacilityOpen(false);
       window.location.reload();
     } catch (err) {
       console.error('Failed to switch hospital facility:', err);
@@ -96,6 +128,20 @@ export default function TopNav({
       setSwitching(false);
     }
   };
+
+  const handleDemoSwitch = async (roleKey) => {
+    setProfileOpen(false);
+    try {
+      await switchDemoRole(roleKey);
+      window.location.reload();
+    } catch (e) {
+      console.error('Failed to switch demo role:', e);
+    }
+  };
+
+  const initials = getInitials(user?.full_name);
+  const roleInfo = ROLE_DISPLAY[user?.role] || ROLE_DISPLAY.nurse;
+  const RoleIcon = roleInfo.icon;
 
   return (
     <header className="top-header">
@@ -112,145 +158,263 @@ export default function TopNav({
       </div>
 
       <div className="header-actions">
-        {/* Interactive Department / Facility Dropdown */}
-        <div style={{ position: 'relative' }} ref={dropdownRef}>
-          <div
-            className="dept-selector"
-            onClick={() => setDropdownOpen((prev) => !prev)}
-            title="Switch Hospital Profile / Department"
+        <div style={{ position: 'relative' }} ref={facilityRef}>
+          <button
+            type="button"
+            className="facility-selector-btn"
+            onClick={() => {
+              setFacilityOpen((prev) => !prev);
+              setProfileOpen(false);
+            }}
+            disabled={switching}
+            aria-expanded={facilityOpen}
+            aria-haspopup="listbox"
             style={{
-              cursor: 'pointer',
-              userSelect: 'none',
-              background: dropdownOpen ? '#eff6ff' : '#f8fafc',
-              borderColor: dropdownOpen ? 'var(--primary-blue)' : 'var(--card-border)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.65rem',
+              padding: '0.45rem 0.85rem',
+              borderRadius: 'var(--radius-md)',
+              border: facilityOpen ? '1px solid var(--primary-blue)' : '1px solid var(--card-border)',
+              background: facilityOpen ? '#f8fafc' : '#ffffff',
+              cursor: switching ? 'wait' : 'pointer',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+              transition: 'all 0.15s ease',
             }}
           >
-            <Building2 size={15} style={{ color: 'var(--primary-blue)' }} />
-            <span>{hospitalName || activeFacility.label}</span>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                background: activeFacility.badgeBg,
+                color: activeFacility.badgeTone,
+              }}
+            >
+              <activeFacility.icon size={15} />
+            </div>
+
+            <div style={{ textAlign: 'left', lineHeight: '1.2' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-title)' }}>
+                {hospitalName || activeFacility.fullName}
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                {activeFacility.label}
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: '0.62rem',
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: '4px',
+                background: activeFacility.badgeBg,
+                color: activeFacility.badgeTone,
+                border: `1px solid ${activeFacility.badgeBorder}`,
+                letterSpacing: '0.02em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {activeFacility.badge}
+            </span>
+
             <ChevronDown
               size={14}
               style={{
-                color: 'var(--text-muted)',
-                transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                color: 'var(--text-light)',
+                transform: facilityOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.15s ease',
               }}
             />
-          </div>
+          </button>
 
-          {dropdownOpen && (
+          {facilityOpen && (
             <div
-              className="ui-card"
+              className="ui-card facility-dropdown-menu"
               style={{
                 position: 'absolute',
                 top: 'calc(100% + 6px)',
                 right: 0,
-                width: '320px',
-                zIndex: 1000,
-                padding: '0.6rem',
-                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                width: '340px',
+                zIndex: 9999,
+                padding: '0.5rem',
+                background: '#ffffff',
+                boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06)',
                 border: '1px solid var(--card-border)',
                 borderRadius: 'var(--radius-lg)',
-                animation: 'fadeIn 0.15s ease',
+                animation: 'dropdownFadeIn 0.15s ease',
               }}
             >
-              <div style={{ padding: '0.4rem 0.6rem 0.6rem', borderBottom: '1px solid var(--card-border)' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
-                  Select Active Facility / Profile
-                </span>
+              <div
+                style={{
+                  padding: '0.4rem 0.6rem 0.5rem',
+                  borderBottom: '1px solid var(--card-border)',
+                  marginBottom: '0.4rem',
+                }}
+              >
+                <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)' }}>
+                  Active Hospital Presets
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                  Switches wait SLAs, triage rules, &amp; department defaults
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.4rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                 {FACILITIES.map((facility) => {
                   const isSelected = facility.id === currentProfile;
+                  const Icon = facility.icon;
+
                   return (
                     <div
                       key={facility.id}
                       onClick={() => handleSelectFacility(facility)}
                       style={{
-                        padding: '0.65rem 0.75rem',
+                        padding: '0.6rem 0.75rem',
                         borderRadius: 'var(--radius-md)',
                         background: isSelected ? '#eff6ff' : 'transparent',
                         border: isSelected ? '1px solid #bfdbfe' : '1px solid transparent',
                         cursor: 'pointer',
+                        transition: 'all 0.12s ease',
                         display: 'flex',
                         alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        gap: '0.5rem',
-                        transition: 'all 0.12s ease',
+                        gap: '0.75rem',
                       }}
                       onMouseEnter={(e) => {
-                        if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                        if (!isSelected) {
+                          e.currentTarget.style.background = '#f8fafc';
+                        }
                       }}
                       onMouseLeave={(e) => {
-                        if (!isSelected) e.currentTarget.style.background = 'transparent';
+                        if (!isSelected) {
+                          e.currentTarget.style.background = 'transparent';
+                        }
                       }}
                     >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <strong style={{ fontSize: '0.86rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-title)' }}>
-                            {facility.label}
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: facility.badgeBg,
+                          color: facility.badgeTone,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          marginTop: '2px',
+                        }}
+                      >
+                        <Icon size={16} />
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <strong style={{ fontSize: '0.84rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-title)' }}>
+                            {facility.fullName}
                           </strong>
                           <span
                             style={{
-                              fontSize: '0.65rem',
+                              fontSize: '0.62rem',
                               fontWeight: 700,
                               padding: '1px 5px',
-                              borderRadius: '4px',
-                              background: isSelected ? '#dbeafe' : '#f1f5f9',
-                              color: isSelected ? 'var(--primary-blue)' : 'var(--text-muted)',
+                              borderRadius: '3px',
+                              background: facility.badgeBg,
+                              color: facility.badgeTone,
+                              border: `1px solid ${facility.badgeBorder}`,
+                              whiteSpace: 'nowrap',
                             }}
                           >
                             {facility.badge}
                           </span>
                         </div>
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.15rem', lineHeight: '1.35' }}>
+
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: '1.3' }}>
                           {facility.desc}
                         </div>
                       </div>
+
                       {isSelected && (
-                        <Check size={16} style={{ color: 'var(--primary-blue)', flexShrink: 0, marginTop: '2px' }} />
+                        <div style={{ color: 'var(--primary-blue)', marginTop: '4px' }}>
+                          <Check size={16} />
+                        </div>
                       )}
                     </div>
                   );
                 })}
               </div>
 
-              <div
-                style={{
-                  marginTop: '0.5rem',
-                  paddingTop: '0.5rem',
-                  borderTop: '1px solid var(--card-border)',
-                  display: 'flex',
-                  justifyContent: 'center',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDropdownOpen(false);
-                    navigate('/hospital-config');
-                  }}
+              {hasRole('admin') && (
+                <div
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--primary-blue)',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    padding: '0.35rem',
+                    padding: '0.5rem 0.6rem 0.2rem',
+                    borderTop: '1px solid var(--card-border)',
+                    marginTop: '0.4rem',
+                    textAlign: 'center',
                   }}
                 >
-                  Configure Hospital Profiles <ExternalLink size={12} />
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    className="btn-white"
+                    onClick={() => {
+                      setFacilityOpen(false);
+                      navigate('/hospital-config');
+                    }}
+                    style={{
+                      width: '100%',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      justifyContent: 'center',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    Configure Hospital Profiles &amp; Wait SLAs <ExternalLink size={12} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Notification Icon with Badge */}
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await systemApi.toggleSurge();
+              window.location.reload();
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+          title={surgeMode ? 'Deactivate 3x Surge Protocol' : 'Activate 3x Surge Protocol (Simulate Emergency Volume)'}
+          style={{
+            padding: '0.38rem 0.75rem',
+            fontSize: '0.74rem',
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            borderRadius: 'var(--radius-md)',
+            background: surgeMode ? '#ef4444' : '#fef2f2',
+            color: surgeMode ? '#ffffff' : '#dc2626',
+            border: surgeMode ? '1px solid #dc2626' : '1px solid #fecaca',
+            cursor: 'pointer',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Radio size={14} className={surgeMode ? 'pulse-alert' : ''} />
+          {surgeMode ? '3× SURGE ACTIVE' : 'SIMULATE 3× SURGE'}
+        </button>
+
         <button
           className="icon-button"
           onClick={() => navigate('/alerts')}
@@ -260,13 +424,160 @@ export default function TopNav({
           {alertsCount > 0 && <span className="icon-badge">{alertsCount}</span>}
         </button>
 
-        {/* Profile Badge */}
-        <div
-          className="profile-avatar"
-          style={{ width: '38px', height: '38px', cursor: 'pointer' }}
-          onClick={() => navigate('/settings')}
-        >
-          JS
+        <div style={{ position: 'relative' }} ref={profileRef}>
+          <div
+            className="profile-avatar"
+            style={{ width: '38px', height: '38px', cursor: 'pointer', userSelect: 'none', fontSize: '0.82rem', fontWeight: 700 }}
+            onClick={() => {
+              setProfileOpen((prev) => !prev);
+              setFacilityOpen(false);
+            }}
+            title={`${user?.full_name || 'Staff'} (${roleInfo.label})`}
+          >
+            {initials}
+          </div>
+
+          {profileOpen && (
+            <div
+              className="ui-card"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: '320px',
+                zIndex: 9999,
+                padding: '0.75rem',
+                background: '#ffffff',
+                boxShadow: '0 20px 30px -8px rgba(15, 23, 42, 0.16), 0 8px 12px -4px rgba(15, 23, 42, 0.08)',
+                border: '1px solid var(--card-border)',
+                borderRadius: 'var(--radius-lg)',
+                animation: 'dropdownFadeIn 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--card-border)' }}>
+                <div className="profile-avatar" style={{ width: '42px', height: '42px', fontSize: '0.9rem' }}>
+                  {initials}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <strong style={{ fontSize: '0.92rem', color: 'var(--text-title)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user?.full_name || 'Staff Member'}
+                  </strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '2px' }}>
+                    <span
+                      style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: roleInfo.bg,
+                        color: roleInfo.text,
+                        border: `1px solid ${roleInfo.border}`,
+                      }}
+                    >
+                      {roleInfo.label}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user?.username}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '0.65rem' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+                  Quick Switch Role (Demo)
+                </span>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginTop: '0.4rem' }}>
+                  {Object.entries(DEMO_CREDENTIALS).map(([key, cred]) => {
+                    const isCurrent = user?.role === cred.role;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleDemoSwitch(key)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: 'var(--radius-md)',
+                          background: isCurrent ? '#eff6ff' : 'transparent',
+                          border: isCurrent ? '1px solid #bfdbfe' : '1px solid transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.12s ease',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: isCurrent ? 'var(--primary-blue)' : 'var(--text-title)' }}>
+                            {cred.name}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            {cred.badge}
+                          </div>
+                        </div>
+                        {isCurrent && <Check size={14} style={{ color: 'var(--primary-blue)' }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {hasRole('admin') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileOpen(false);
+                      navigate('/settings');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.45rem 0.65rem',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: 'var(--text-title)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <Settings size={15} style={{ color: 'var(--text-muted)' }} /> System Settings
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setProfileOpen(false);
+                    await logout();
+                    navigate('/login');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.45rem 0.65rem',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#dc2626',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <LogOut size={15} /> Sign Out of Session
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

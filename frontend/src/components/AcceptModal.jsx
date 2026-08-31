@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { triageApi } from '../services/api';
 import { ShieldCheck, AlertTriangle, CheckCircle2, X } from 'lucide-react';
 
-// Requirement #8: clinician Accept workflow. The nurse reviews the AI
-// recommendation and explicitly accepts it. Every acceptance is audited.
 export default function AcceptModal({ visitId, patientName, esiLevel, confidence, onClose, onSuccess }) {
   const [nurseId, setNurseId] = useState('RN A. Collins');
   const [reason, setReason] = useState('');
@@ -98,17 +96,22 @@ export default function AcceptModal({ visitId, patientName, esiLevel, confidence
               <ShieldCheck size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
               <span>
                 Acceptance is recorded in the permanent institutional audit log with timestamp,
-                clinician ID, and the AI confidence at time of review.
+                clinician ID, and AI prediction details.
               </span>
             </div>
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+            <button type="button" className="btn btn-outline" onClick={onClose} disabled={loading}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Recording...' : 'Confirm Acceptance'}
+            <button
+              type="submit"
+              className="btn btn-success"
+              disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <CheckCircle2 size={16} /> {loading ? 'Recording...' : 'Confirm Acceptance'}
             </button>
           </div>
         </form>

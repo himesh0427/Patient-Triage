@@ -35,7 +35,6 @@ const ESI_COLORS = {
   1: 'var(--esi-1)', 2: 'var(--esi-2)', 3: 'var(--esi-3)', 4: 'var(--esi-4)', 5: 'var(--esi-5)',
 };
 
-// Vitals reference ranges (adult) used purely for visual flagging
 const VITAL_META = {
   hr: { label: 'Heart Rate', unit: 'bpm', low: 60, high: 100, critLow: 40, critHigh: 130, icon: Heart },
   sbp: { label: 'Systolic BP', unit: 'mmHg', low: 90, high: 140, critLow: 80, critHigh: 180, icon: Droplets },
@@ -98,76 +97,63 @@ const ACTION_META = {
   OVERRIDE: { icon: ShieldCheck, color: '#2563eb', bg: '#eff6ff' },
   ACCEPT: { icon: BadgeCheck, color: '#16a34a', bg: '#f0fdf4' },
   VITAL_DRIFT_ALERT: { icon: Activity, color: '#dc2626', bg: '#fef2f2' },
-  AUTO_ESCALATE_SURGE: { icon: TrendingUp, color: '#d97706', bg: '#fffbeb' },
-  RETRIAGE: { icon: History, color: '#b45309', bg: '#fef3c7' },
-  BYPASS_CRITICAL: { icon: AlertTriangle, color: '#b91c1c', bg: '#fef2f2' },
-  DISCHARGE: { icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4' },
+  RETRIAGE_ALERT: { icon: AlertTriangle, color: '#d97706', bg: '#fffbeb' },
+  DISCHARGE: { icon: UserX, color: '#64748b', bg: '#f1f5f9' },
+  STAGE_TRIAGE_COMPLETED: { icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4' },
 };
 
-const actionMeta = (action) => ACTION_META[action] || { icon: Clock, color: '#64748b', bg: '#f1f5f9' };
+const actionMeta = (action) => ACTION_META[action] || { icon: ClipboardList, color: '#64748b', bg: '#f8fafc' };
 
-function VitalTile({ code, value, large }) {
-  const meta = VITAL_META[code];
-  const status = vitalStatus(value, meta);
-  const Icon = meta.icon;
+function VitalsGrid({ vitals, large = false }) {
   return (
-    <div className="vital-tile" style={{ borderColor: STATUS_TONE[status], background: status === 'missing' ? '#f8fafc' : '#ffffff' }}>
-      <div className="vital-tile-head">
-        <Icon size={large ? 17 : 14} style={{ color: STATUS_TONE[status] }} />
-        <span className="vital-tile-label">{meta.label}</span>
-      </div>
-      <div className="vital-tile-value" style={{ fontSize: large ? '1.35rem' : '1.1rem' }}>
-        {value === null || value === undefined || value === '' ? '--' : value}
-        <span className="vital-tile-unit">{meta.unit}</span>
-      </div>
-      <div className="vital-tile-status" style={{ color: STATUS_TONE[status] }}>
-        {status === 'missing' ? 'Not recorded' : status === 'normal' ? 'Within range' : status === 'borderline' ? 'Borderline' : 'Critical'}
-      </div>
-    </div>
-  );
-}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: large ? '1rem' : '0.65rem' }}>
+      {Object.entries(VITAL_META).map(([key, meta]) => {
+        const val = vitals?.[key];
+        const status = vitalStatus(val, meta);
+        const color = STATUS_TONE[status];
+        const Icon = meta.icon;
 
-function BloodPressureTile({ sbp, dbp, large }) {
-  const sStatus = vitalStatus(sbp, VITAL_META.sbp);
-  const dStatus = vitalStatus(dbp, VITAL_META.dbp);
-  const tone = sStatus === 'critical' || dStatus === 'critical' ? 'critical' : sStatus === 'borderline' || dStatus === 'borderline' ? 'borderline' : sbp === null ? 'missing' : 'normal';
-  const color = STATUS_TONE[tone];
-  return (
-    <div className="vital-tile" style={{ borderColor: color, background: tone === 'missing' ? '#f8fafc' : '#ffffff' }}>
-      <div className="vital-tile-head">
-        <Droplets size={large ? 17 : 14} style={{ color }} />
-        <span className="vital-tile-label">Blood Pressure</span>
-      </div>
-      <div className="vital-tile-value" style={{ fontSize: large ? '1.35rem' : '1.1rem' }}>
-        {sbp ?? '--'}<span className="vital-tile-unit">/</span>{dbp ?? '--'}
-        <span className="vital-tile-unit"> mmHg</span>
-      </div>
-      <div className="vital-tile-status" style={{ color }}>
-        {tone === 'missing' ? 'Not recorded' : tone === 'normal' ? 'Within range' : tone === 'borderline' ? 'Borderline' : 'Critical'}
-      </div>
-    </div>
-  );
-}
-
-function VitalsGrid({ vitals, large }) {
-  const has = vitals && (
-    vitals.hr !== null || vitals.sbp !== null || vitals.dbp !== null ||
-    vitals.rr !== null || vitals.spo2 !== null || vitals.temp !== null
-  );
-  if (!has) {
-    return (
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '1.5rem 0', textAlign: 'center' }}>
-        No vital signs recorded for this visit yet.
-      </div>
-    );
-  }
-  return (
-    <div className="vital-grid">
-      <VitalTile code="hr" value={vitals.hr} large={large} />
-      <BloodPressureTile sbp={vitals.sbp} dbp={vitals.dbp} large={large} />
-      <VitalTile code="rr" value={vitals.rr} large={large} />
-      <VitalTile code="spo2" value={vitals.spo2} large={large} />
-      <VitalTile code="temp" value={vitals.temp} large={large} />
+        return (
+          <div
+            key={key}
+            style={{
+              background: '#f8fafc',
+              border: `1px solid ${status === 'critical' ? '#fca5a5' : status === 'borderline' ? '#fde68a' : 'var(--card-border)'}`,
+              borderRadius: 'var(--radius-md)',
+              padding: large ? '0.85rem 1rem' : '0.6rem 0.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              position: 'relative',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <Icon size={12} style={{ color }} /> {meta.label}
+              </span>
+              <span
+                style={{
+                  width: '7px',
+                  height: '7px',
+                  borderRadius: '50%',
+                  background: color,
+                  display: 'inline-block',
+                }}
+                title={status}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}>
+              <span style={{ fontSize: large ? '1.5rem' : '1.15rem', fontWeight: 800, color: 'var(--text-title)', fontFamily: 'var(--font-mono)' }}>
+                {val !== null && val !== undefined && val !== '' ? val : '--'}
+              </span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{meta.unit}</span>
+            </div>
+            <div style={{ fontSize: '0.66rem', color: 'var(--text-light)', marginTop: '0.2rem' }}>
+              Normal: {meta.low}–{meta.high}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -175,20 +161,34 @@ function VitalsGrid({ vitals, large }) {
 function FactorBars({ factors }) {
   if (!factors || factors.length === 0) {
     return (
-      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '1.25rem 0', textAlign: 'center' }}>
-        No feature weighting factors available.
+      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '1rem 0' }}>
+        No explainable factor weights stored for this visit.
       </div>
     );
   }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
       {factors.map((f, i) => (
-        <div key={i} className="factor-bar-row">
-          <span className="factor-label" title={f.raw || f.label}>{f.label}</span>
-          <div className="factor-bar-track">
-            <div className="factor-bar-fill" style={{ width: `${parseFloat(f.weight) * 100}%` }} />
+        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-title)' }} title={f.raw || f.label}>
+              {f.label}
+            </span>
+            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+              {f.weight}
+            </span>
           </div>
-          <span className="factor-weight">{f.weight}</span>
+          <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${Math.min(100, Math.max(10, Math.abs(parseFloat(f.weight) || 0.5) * 100))}%`,
+                height: '100%',
+                background: i === 0 ? 'var(--primary-blue)' : i === 1 ? '#06b6d4' : '#8b5cf6',
+                borderRadius: '4px',
+              }}
+            />
+          </div>
         </div>
       ))}
     </div>
@@ -202,9 +202,9 @@ export default function PatientDetails() {
   const [visit, setVisit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [confidenceThreshold, setConfidenceThreshold] = useState(0.5);
+  const [stats, setStats] = useState(null);
   const [surgeMode, setSurgeMode] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [showRevitalsModal, setShowRevitalsModal] = useState(false);
@@ -212,39 +212,21 @@ export default function PatientDetails() {
   const [discharging, setDischarging] = useState(false);
 
   const fetchVisitData = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const [visitRes, statsRes] = await Promise.all([
         triageApi.getVisit(id),
         systemApi.getStats(),
       ]);
       setVisit(visitRes.data);
-      if (statsRes.data) {
-        setConfidenceThreshold(statsRes.data.confidence_threshold ?? 0.5);
-        setSurgeMode(statsRes.data.surge_mode || false);
-      }
-      setError(null);
+      setStats(statsRes.data);
+      setSurgeMode(statsRes.data?.surge_mode || false);
     } catch (err) {
-      console.error("Failed to load visit:", err);
-      setError(err.response?.data?.detail || "Patient visit record not found.");
+      console.error(err);
+      setError('Failed to fetch patient visit record.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDischarge = async () => {
-    const name = patient?.name || 'this patient';
-    if (!window.confirm(
-      `Discharge ${name} from the emergency queue?\n\nThis will:\n• Mark the patient as DISCHARGED\n• Remove them from the active waiting queue\n• Stop the reassessment timer and alerts\n• Log the discharge time in the audit trail\n\nThe patient's clinical history remains available.`
-    )) return;
-    setDischarging(true);
-    try {
-      await triageApi.discharge(visit.visit_id);
-      await fetchVisitData();
-    } catch (err) {
-      console.error("Discharge failed:", err);
-      alert("Failed to discharge patient. Please try again.");
-    } finally {
-      setDischarging(false);
     }
   };
 
@@ -252,10 +234,26 @@ export default function PatientDetails() {
     fetchVisitData();
   }, [id]);
 
-  if (loading) {
+  const handleDischarge = async () => {
+    if (!window.confirm('Confirm patient discharge? This marks the emergency visit complete and stops reassessment timers.')) {
+      return;
+    }
+    setDischarging(true);
+    try {
+      await triageApi.discharge(visit.visit_id);
+      await fetchVisitData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to discharge patient.');
+    } finally {
+      setDischarging(false);
+    }
+  };
+
+  if (loading && !visit) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '0.75rem' }}>
-        <span>Loading Patient Record...</span>
+      <div className="page-container" style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
+        Loading patient clinical chart...
       </div>
     );
   }
@@ -263,41 +261,101 @@ export default function PatientDetails() {
   if (error || !visit) {
     return (
       <div className="page-container">
-        <div className="ui-card" style={{ maxWidth: '600px', margin: '2rem auto', textAlign: 'center', padding: '2rem' }}>
-          <AlertTriangle size={36} style={{ color: 'var(--esi-1)', margin: '0 auto 1rem' }} />
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Visit Record Not Found</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>{error}</p>
-          <button className="btn-blue" onClick={() => navigate('/queue')}>Return to Triage Queue</button>
+        <div className="alert-banner alert-danger">
+          <AlertTriangle size={20} />
+          <span>{error || 'Patient visit not found.'}</span>
         </div>
+        <button className="btn btn-secondary" style={{ marginTop: '1rem' }} onClick={() => navigate('/queue')}>
+          Return to Queue
+        </button>
       </div>
     );
   }
 
-  const { patient, vitals, audit_trail = [], vitals_history = [], cc_features = [] } = visit;
+  const patient = visit.patient;
+  const vitals = visit.vitals || {};
+  const vitals_history = visit.vitals_history || [];
+  const audit_trail = visit.audit_trail || [];
+  const cc_features = visit.cc_features || [];
+
   const esiLevel = visit.esi_final || visit.esi_predicted || 3;
-  const esiLabel = esiLevel === 1 ? 'Immediate' : esiLevel === 2 ? 'Very Urgent' : esiLevel === 3 ? 'Urgent' : esiLevel === 4 ? 'Less Urgent' : 'Non-Urgent';
+  const esiLabel = {
+    1: 'Immediate (Resuscitation)',
+    2: 'Emergent (High Risk)',
+    3: 'Urgent (Multiple Resources)',
+    4: 'Less Urgent (One Resource)',
+    5: 'Non-Urgent (No Resources)',
+  }[esiLevel];
 
-  const confidenceScore = visit.confidence_score !== undefined && visit.confidence_score !== null
-    ? visit.confidence_score
-    : visit.confidence !== undefined && visit.confidence !== null
-      ? visit.confidence
-      : null;
+  const confidenceScore = visit.confidence !== null && visit.confidence !== undefined
+    ? visit.confidence
+    : (visit.confidence_score !== null && visit.confidence_score !== undefined ? visit.confidence_score : null);
 
-  const confLevel = confidenceLevel(confidenceScore, confidenceThreshold);
+  const confidenceThreshold = stats?.confidence_threshold ?? 0.50;
   const isLowConfidence = confidenceScore !== null && confidenceScore < confidenceThreshold;
 
+  const hasAccepted = audit_trail.some((l) => l.action === 'ACCEPT');
+
+  const completeness = vitalsCompleteness(vitals);
   const pathway = pathwayOf(patient?.age);
   const history = historyStatus(patient?.has_history, visit.prior_visits);
-  const completeness = vitalsCompleteness(vitals);
+  const confInfo = confidenceLevel(confidenceScore, confidenceThreshold);
 
-  const patientInitials = (patient?.name || 'PT')
+  const triageLog = audit_trail.find((l) => l.action === 'STAGE_TRIAGE_COMPLETED') || audit_trail[audit_trail.length - 1];
+  const triageCompletedTime = triageLog ? triageLog.timestamp : visit.arrival_time;
+
+  const lastReassessLog = [...audit_trail].reverse().find((l) => l.action === 'VITAL_DRIFT_ALERT' || l.action === 'OVERRIDE' || l.action === 'ACCEPT');
+  const lastReassessTime = lastReassessLog ? lastReassessLog.timestamp : null;
+
+  const dischargeLog = audit_trail.find((l) => l.action === 'DISCHARGE');
+  const dischargeTime = dischargeLog ? dischargeLog.timestamp : visit.discharge_time;
+
+  const timelineStages = [
+    {
+      key: 'arrival',
+      label: 'Patient Arrived',
+      time: visit.arrival_time,
+      icon: User,
+      state: 'done',
+      note: `Intake registered with ID P-${patient?.id || id}`,
+    },
+    {
+      key: 'triage',
+      label: 'AI Triage Completed',
+      time: triageCompletedTime,
+      icon: Brain,
+      state: 'done',
+      note: `Initial prediction: ESI-${visit.esi_predicted}${confidenceScore !== null ? ` (${(confidenceScore * 100).toFixed(0)}% conf)` : ''}`,
+    },
+    {
+      key: 'reassess',
+      label: 'Reassessment & Drift',
+      time: lastReassessTime,
+      icon: Activity,
+      state: lastReassessTime ? 'done' : (visit.is_active ? 'active' : 'idle'),
+      note: lastReassessTime
+        ? `Last evaluated at ${new Date(lastReassessTime).toLocaleTimeString()}`
+        : (visit.is_active ? `Due every ${ESI_TIME_SLABS[esiLevel]}` : 'Not reassessed prior to discharge'),
+    },
+    {
+      key: 'discharge',
+      label: 'Visit Outcome / Discharge',
+      time: dischargeTime,
+      icon: UserX,
+      state: !visit.is_active ? 'done' : 'idle',
+      note: !visit.is_active
+        ? `Discharged at ${new Date(dischargeTime).toLocaleTimeString()}`
+        : 'Patient currently active in waiting queue',
+    },
+  ];
+
+  const patientInitials = (patient?.name || 'Pt')
     .split(' ')
     .map((n) => n[0])
     .join('')
     .substring(0, 2)
     .toUpperCase();
 
-  // Factors built purely from real predictions / reasons
   const factors = visit.reasons && Array.isArray(visit.reasons) && visit.reasons.length > 0
     ? visit.reasons.map((r, i) => ({
       label: r.length > 28 ? r.substring(0, 28) + '...' : r,
@@ -309,7 +367,6 @@ export default function PatientDetails() {
   const source = visit.source || (visit.esi_predicted !== null && visit.esi_predicted <= 2 && confidenceScore === 1.0 ? 'hard_gate' : 'ml');
   const sourceLabel = source === 'bypass' ? 'Immediate Bypass' : source === 'hard_gate' ? 'Deterministic Hard Rules' : 'ML Model (LightGBM)';
 
-  // Raw-score uncertainty (distance to nearest ESI boundary)
   const boundaries = [1.5, 2.5, 3.5, 4.5];
   const rawScore = visit.raw_ml_score;
   const boundaryDist = rawScore !== null && rawScore !== undefined
@@ -323,7 +380,6 @@ export default function PatientDetails() {
         ? 'Moderate uncertainty — near an ESI boundary'
         : 'Low uncertainty — clearly separated from boundaries';
 
-  // Safety recommendation (requirement #4)
   let safetyRecommendation;
   if (esiLevel === 1) {
     safetyRecommendation = 'Immediate resuscitation. ESI-1 patients must not wait. Continuous reassessment during resuscitation.';
@@ -345,89 +401,15 @@ export default function PatientDetails() {
     { key: 'timeline', label: 'Clinical Timeline', icon: Clock },
   ];
 
-  const hasDrift = audit_trail.some((l) => l.action === 'VITAL_DRIFT_ALERT');
-  const hasEscalation = audit_trail.some((l) => ['OVERRIDE', 'AUTO_ESCALATE_SURGE', 'BYPASS_CRITICAL', 'VITAL_DRIFT_ALERT'].includes(l.action));
-  const hasAccepted = audit_trail.some((l) => l.action === 'ACCEPT');
-  const reassessed = vitals_history.length > 1;
-
-  const auditTimeFor = (actions) => {
-    const hit = audit_trail.find((l) => actions.includes(l.action));
-    return hit?.timestamp || null;
-  };
-
-  const timelineStages = [
-    {
-      key: 'registration', label: 'Registration',
-      time: visit.arrival_time, icon: User,
-      state: 'done', note: 'Patient registered and arrival recorded in the queue.',
-    },
-    {
-      key: 'vitals', label: 'Vitals Recorded',
-      time: vitals_history.length > 0 ? vitals_history[0].recorded_at : null,
-      icon: Activity,
-      state: vitals_history.length > 0 ? 'done' : 'current',
-      note: vitals_history.length > 0
-        ? `${vitals_history.length} reading${vitals_history.length === 1 ? '' : 's'} on file (${completeness.present}/6 vitals captured).`
-        : 'Awaiting initial vital signs.',
-    },
-    {
-      key: 'ai', label: 'AI Assessment',
-      time: visit.arrival_time, icon: Brain,
-      state: visit.esi_predicted !== null && visit.esi_predicted !== undefined ? 'done' : 'current',
-      note: visit.esi_predicted !== null && visit.esi_predicted !== undefined
-        ? `ESI-${visit.esi_predicted} recommended by ${sourceLabel} with ${confidenceScore !== null ? (confidenceScore * 100).toFixed(0) + '%' : '—'} confidence.`
-        : 'Pending model inference.',
-    },
-    {
-      key: 'review', label: 'Clinician Review',
-      time: auditTimeFor(['ACCEPT', 'OVERRIDE']), icon: ShieldCheck,
-      state: hasAccepted || visit.is_overridden ? 'done' : isLowConfidence ? 'attention' : 'current',
-      note: hasAccepted
-        ? 'AI recommendation accepted by clinician (audited).'
-        : visit.is_overridden
-          ? `Acuity adjusted by clinician to ESI-${visit.esi_final} (audited).`
-          : isLowConfidence
-            ? `Low AI confidence — clinician review required before finalizing ESI-${esiLevel}.`
-            : 'Awaiting clinician confirmation of the AI recommendation.',
-    },
-    {
-      key: 'reassess', label: 'Reassessment',
-      time: auditTimeFor(['RETRIAGE', 'VITAL_DRIFT_ALERT']), icon: History,
-      state: reassessed ? 'done' : visit.retriage_overdue ? 'attention' : 'upcoming',
-      note: reassessed
-        ? `${Math.max(0, vitals_history.length - 1)} reassessment(s) recorded.`
-        : visit.retriage_overdue
-          ? `Reassessment overdue (ESI-${esiLevel} safe interval elapsed). Record re-vitals.`
-          : 'Scheduled per the ESI reassessment interval. Not yet required.',
-    },
-    {
-      key: 'escalation', label: 'Escalation / Override',
-      time: auditTimeFor(['OVERRIDE', 'AUTO_ESCALATE_SURGE', 'VITAL_DRIFT_ALERT', 'BYPASS_CRITICAL']), icon: TrendingUp,
-      state: hasEscalation ? 'done' : 'upcoming',
-      note: hasEscalation
-        ? 'Acuity escalated or overridden — every change is logged in the audit trail.'
-        : 'No escalation or override recorded this visit.',
-    },
-    {
-      key: 'discharge', label: 'Discharge',
-      time: visit.discharge_time, icon: CheckCircle2,
-      state: !visit.is_active ? 'done' : 'upcoming',
-      note: !visit.is_active
-        ? `Discharged at ${visit.discharge_time ? new Date(visit.discharge_time).toLocaleString() : '—'}. Removed from the active queue; history retained.`
-        : 'Pending disposition. Discharge removes the patient from the active queue.',
-    },
-  ];
-
   return (
     <>
       <TopNav
-        title="Patient Details"
+        title={`Patient Chart · ${patient?.name || 'Emergency Intake'}`}
         subtitle={`Patient ID: P-${patient?.id || id} · Visit #${visit.visit_id}`}
         surgeMode={surgeMode}
       />
 
       <div className="page-container">
-        {/* LOW CONFIDENCE ALERT */}
         {isLowConfidence && (
           <div className="alert-banner alert-danger" style={{ marginBottom: '1.25rem', border: '2px solid #ef4444', background: '#fef2f2' }}>
             <AlertTriangle size={24} style={{ flexShrink: 0, color: '#ef4444' }} />
@@ -443,7 +425,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* REASSESSMENT / DISCHARGE ALERT */}
         {!visit.is_active ? (
           <div className="alert-banner" style={{ marginBottom: '1.25rem', border: '1px solid #cbd5e1', background: '#f1f5f9' }}>
             <CheckCircle2 size={20} style={{ flexShrink: 0, color: '#64748b' }} />
@@ -474,10 +455,8 @@ export default function PatientDetails() {
           )
         )}
 
-        {/* Top Header Card */}
         <div className="ui-card" style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
-            {/* Left: Patient Avatar & Demographics */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
               <div style={{
                 width: '56px', height: '56px', borderRadius: '50%',
@@ -506,7 +485,6 @@ export default function PatientDetails() {
               </div>
             </div>
 
-            {/* Right: ESI Result Box & Actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
               <div style={{
                 background: '#ffffff',
@@ -539,7 +517,6 @@ export default function PatientDetails() {
                 </div>
               </div>
 
-              {/* Reassessment timer / discharge status */}
               <div style={{ minWidth: '150px' }}>
                 {!visit.is_active ? (
                   <span className="status-pill discharged" style={{ background: '#f1f5f9', color: '#64748b', fontSize: '0.8rem', fontWeight: 700, padding: '0.4rem 0.75rem' }}>
@@ -555,7 +532,6 @@ export default function PatientDetails() {
                 )}
               </div>
 
-              {/* Accept / Reassess / Override / Discharge */}
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button
                   className="btn-white"
@@ -608,7 +584,6 @@ export default function PatientDetails() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
         <div className="tab-navigation">
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -626,10 +601,8 @@ export default function PatientDetails() {
           })}
         </div>
 
-        {/* ============================= OVERVIEW ============================= */}
         {activeTab === 'overview' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.2fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
-            {/* Card 1: Chief Complaint & History */}
             <div className="ui-card">
               <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
                 <h4 className="ui-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -662,7 +635,6 @@ export default function PatientDetails() {
               </div>
             </div>
 
-            {/* Card 2: Vital Signs */}
             <div className="ui-card">
               <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
                 <h4 className="ui-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -681,7 +653,6 @@ export default function PatientDetails() {
               </div>
             </div>
 
-            {/* Card 3: AI Decision Factors */}
             <div className="ui-card">
               <div className="ui-card-header" style={{ marginBottom: '0.75rem' }}>
                 <h4 className="ui-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -709,7 +680,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ============================= VITALS & HISTORY ============================= */}
         {activeTab === 'vitals' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '1.25rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -823,7 +793,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ============================= SYMPTOMS ============================= */}
         {activeTab === 'symptoms' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.25rem' }}>
             <div className="ui-card">
@@ -881,7 +850,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ============================= EXPLAINABLE AI ============================= */}
         {activeTab === 'analysis' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '1.25rem' }}>
             <div className="ui-card">
@@ -900,7 +868,6 @@ export default function PatientDetails() {
                 <span className="status-pill waiting">{sourceLabel}</span>
               </div>
 
-              {/* Confidence bar */}
               <div style={{ marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontSize: '0.8rem' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Model Confidence</span>
@@ -921,7 +888,6 @@ export default function PatientDetails() {
                 </div>
               </div>
 
-              {/* Uncertainty (requirement #4) */}
               <div className="info-callout" style={{ marginBottom: '1rem', background: isLowConfidence ? '#fef2f2' : '#f8fafc', borderColor: isLowConfidence ? '#fecaca' : 'var(--card-border)' }}>
                 <Info size={16} style={{ color: isLowConfidence ? '#dc2626' : 'var(--primary-blue)', flexShrink: 0 }} />
                 <div style={{ fontSize: '0.78rem', lineHeight: '1.5' }}>
@@ -932,7 +898,6 @@ export default function PatientDetails() {
                 </div>
               </div>
 
-              {/* Missing data (requirement #4) */}
               <div style={{ marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', fontSize: '0.8rem' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Data Completeness</span>
@@ -947,7 +912,6 @@ export default function PatientDetails() {
                 )}
               </div>
 
-              {/* Safety recommendation (requirement #4) */}
               <div style={{ padding: '0.85rem 0.95rem', background: esiLevel === 1 || isLowConfidence ? '#fef2f2' : '#eff6ff', border: `1px solid ${esiLevel === 1 || isLowConfidence ? '#fecaca' : '#bfdbfe'}`, borderRadius: 'var(--radius-md)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', fontWeight: 800, color: esiLevel === 1 || isLowConfidence ? '#991b1b' : '#1e3a8a', marginBottom: '0.25rem' }}>
                   <ShieldCheck size={15} /> SAFETY RECOMMENDATION
@@ -1009,7 +973,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ============================= CLINICAL TIMELINE ============================= */}
         {activeTab === 'timeline' && (
           <div className="ui-card">
             <div className="ui-card-header" style={{ marginBottom: '1rem' }}>
@@ -1088,7 +1051,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* Modals */}
         {showAcceptModal && (
           <AcceptModal
             visitId={visit.visit_id}

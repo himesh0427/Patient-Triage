@@ -74,7 +74,6 @@ export default function Alerts() {
       <div className="page-container">
         <SurgeBanner active={surgeMode} />
 
-        {/* Alert type filter chips */}
         <div className="filter-chip-group" style={{ marginBottom: '1.25rem' }}>
           {filterOptions.map((o) => (
             <button
@@ -194,7 +193,6 @@ export default function Alerts() {
           </div>
         )}
 
-        {/* Legend / note */}
         <div className="info-callout" style={{ marginTop: '1.25rem' }}>
           <ShieldAlert size={16} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
           <span>

@@ -1,38 +1,11 @@
 from typing import Optional
 
-
 def apply_hard_rules(
     age: Optional[float],
     vitals: dict,
     symptom_text: str
 ):
-    """
-    ESI-inspired deterministic safety gate.
-
-    Purpose:
-        Catch obvious ESI-1 / ESI-2 presentations BEFORE
-        the LightGBM model runs.
-
-    Returns:
-        {
-            "esi": 1 or 2 or None,
-            "source": "hard_gate" or "ml",
-            "model_probability": None,
-            "reasons": [...]
-        }
-
-    Important:
-        - Missing vitals remain missing.
-        - Missing != normal.
-        - This is NOT a replacement for clinician ESI assessment.
-        - ESI-3/4/5 are handled by the ML/resource workflow.
-    """
-
     text = (symptom_text or "").lower().strip()
-
-    # =========================================================
-    # 0. SAFELY READ VITALS
-    # =========================================================
 
     spo2 = vitals.get("spo2")
     hr = vitals.get("hr")
@@ -41,7 +14,6 @@ def apply_hard_rules(
     dbp = vitals.get("dbp")
     temp = vitals.get("temp")
 
-    # Convert numeric strings safely
     def to_float(value):
         try:
             if value is None or value == "":
@@ -56,17 +28,6 @@ def apply_hard_rules(
     sbp = to_float(sbp)
     dbp = to_float(dbp)
     temp = to_float(temp)
-
-    # =========================================================
-    # 1. ESI-1: IMMEDIATE LIFE-SAVING SITUATION
-    # =========================================================
-    #
-    # These are obvious situations where the ML model should
-    # NOT be allowed to downgrade the patient.
-    #
-    # ESI-1 examples include cardiac/respiratory arrest and
-    # patients requiring immediate lifesaving intervention.
-    # =========================================================
 
     esi_1_keywords = [
         "cardiac arrest",
@@ -96,17 +57,6 @@ def apply_hard_rules(
             ]
         }
 
-    # =========================================================
-    # 2. ESI-1: EXTREME PHYSIOLOGICAL INSTABILITY
-    # =========================================================
-    #
-    # Conservative safety thresholds.
-    #
-    # IMPORTANT:
-    # These are safety gates for the prototype, not a complete
-    # reproduction of every ESI vital-sign rule.
-    # =========================================================
-
     if spo2 is not None and spo2 < 85:
         return {
             "esi": 1,
@@ -127,30 +77,14 @@ def apply_hard_rules(
             ]
         }
 
-    # =========================================================
-    # 3. ESI-2: HIGH-RISK / TIME-SENSITIVE PRESENTATION
-    # =========================================================
-    #
-    # ESI-2 is not simply "abnormal vital sign".
-    #
-    # It includes patients with high-risk presentations,
-    # severe distress/pain, or conditions where waiting could
-    # cause significant harm.
-    # =========================================================
-
     esi_2_keywords = [
-        # Cardiovascular
         "chest pain",
         "pressure in chest",
         "crushing chest pain",
-
-        # Respiratory
         "severe shortness of breath",
         "severe respiratory distress",
         "respiratory distress",
         "difficulty breathing",
-
-        # Neurologic
         "stroke",
         "facial droop",
         "sudden weakness",
@@ -160,23 +94,15 @@ def apply_hard_rules(
         "severe confusion",
         "active seizure",
         "ongoing seizure",
-
-        # Bleeding
         "heavy bleeding",
         "severe bleeding",
         "uncontrolled bleeding",
         "vomiting blood",
         "blood vomiting",
-
-        # Trauma
         "major trauma",
         "amputation",
-
-        # Allergy
         "anaphylaxis",
         "severe allergic reaction",
-
-        # Severe distress
         "severe pain",
         "unbearable pain",
     ]
@@ -197,14 +123,6 @@ def apply_hard_rules(
                 f"Detected: {', '.join(matched_esi_2)}"
             ]
         }
-
-    # =========================================================
-    # 4. ESI-2: CONCERNING PHYSIOLOGY
-    # =========================================================
-    #
-    # Don't make one mild abnormality automatically ESI-2.
-    # These are conservative escalation triggers.
-    # =========================================================
 
     if spo2 is not None and spo2 < 92:
         return {
@@ -236,26 +154,7 @@ def apply_hard_rules(
             ]
         }
 
-    # =========================================================
-    # 5. PEDIATRIC SAFETY CHECK
-    # =========================================================
-    #
-    # IMPORTANT:
-    # We DO NOT say:
-    #
-    #     child + fever = ESI-2
-    #
-    # Pediatric ESI requires age-specific assessment of
-    # vital signs and clinical presentation.
-    #
-    # A fever by itself should NOT automatically force ESI-2.
-    #
-    # Therefore this prototype only escalates when fever is
-    # accompanied by concerning symptoms/physiology.
-    # =========================================================
-
     if age is not None and age < 18:
-
         pediatric_concerning_terms = [
             "lethargy",
             "very lethargic",
@@ -285,25 +184,6 @@ def apply_hard_rules(
                     f"Detected: {', '.join(matched_pediatric)}"
                 ]
             }
-
-    # =========================================================
-    # 6. NO HARD GATE
-    # =========================================================
-    #
-    # Let LightGBM evaluate the patient.
-    #
-    # The ML model will consider:
-    #     age
-    #     gender
-    #     HR
-    #     SBP
-    #     DBP
-    #     RR
-    #     SpO2
-    #     temperature
-    #     oxygen device
-    #     cc_* symptoms
-    # =========================================================
 
     return {
         "esi": None,

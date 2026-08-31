@@ -4,7 +4,7 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Theme Colors matching the Reference Image */
+  
   --sidebar-bg: #0d1527;
   --sidebar-border: #1a233a;
   --sidebar-hover: rgba(255, 255, 255, 0.07);
@@ -27,28 +27,28 @@
   --primary-blue-hover: #1e40af;
   --primary-blue-light: #eff6ff;
 
-  /* Specific ESI Colors matching Reference */
-  --esi-1: #ef4444; /* Immediate Red */
+  
+  --esi-1: #ef4444; 
   --esi-1-bg: #fef2f2;
   --esi-1-border: #fecaca;
   --esi-1-text: #b91c1c;
 
-  --esi-2: #f97316; /* Very Urgent Orange */
+  --esi-2: #f97316; 
   --esi-2-bg: #fff7ed;
   --esi-2-border: #fed7aa;
   --esi-2-text: #c2410c;
 
-  --esi-3: #eab308; /* Urgent Yellow */
+  --esi-3: #eab308; 
   --esi-3-bg: #fefce8;
   --esi-3-border: #fef08a;
   --esi-3-text: #a16207;
 
-  --esi-4: #22c55e; /* Less Urgent Green */
+  --esi-4: #22c55e; 
   --esi-4-bg: #f0fdf4;
   --esi-4-border: #bbf7d0;
   --esi-4-text: #15803d;
 
-  --esi-5: #38bdf8; /* Non-Urgent Cyan/Blue */
+  --esi-5: #38bdf8; 
   --esi-5-bg: #f0f9ff;
   --esi-5-border: #bae6fd;
   --esi-5-text: #0369a1;
@@ -79,13 +79,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Main App Wrapper */
 .app-layout {
   display: flex;
   min-height: 100vh;
 }
 
-/* Sidebar Styles matching screenshot */
 .sidebar {
   width: 250px;
   background-color: var(--sidebar-bg);
@@ -239,7 +237,6 @@ body {
   box-shadow: 0 0 6px #22c55e;
 }
 
-/* Main Content Layout */
 .main-wrapper {
   flex: 1;
   display: flex;
@@ -248,7 +245,6 @@ body {
   background-color: var(--main-bg);
 }
 
-/* Topbar Header matching screenshot */
 .top-header {
   height: 70px;
   background: #ffffff;
@@ -331,13 +327,11 @@ body {
   border: 2px solid #ffffff;
 }
 
-/* Content Container */
 .page-container {
   padding: 1.75rem 2rem;
   flex: 1;
 }
 
-/* Card Styles */
 .ui-card {
   background: #ffffff;
   border: 1px solid var(--card-border);
@@ -359,7 +353,6 @@ body {
   color: var(--text-title);
 }
 
-/* ESI Summary Metric Cards on Dashboard */
 .esi-cards-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -422,7 +415,6 @@ body {
   color: var(--text-muted);
 }
 
-/* ESI Square Badges matching screenshot (e.g. Red square with '1', Orange with '2') */
 .esi-square-badge {
   width: 24px;
   height: 24px;
@@ -441,7 +433,6 @@ body {
 .esi-square-badge.esi-4 { background-color: var(--esi-4); }
 .esi-square-badge.esi-5 { background-color: var(--esi-5); }
 
-/* Large ESI Box (Patient Details & Intake Preview) */
 .esi-result-box {
   border-radius: var(--radius-md);
   padding: 0.75rem 1rem;
@@ -478,7 +469,6 @@ body {
 .esi-result-square.esi-4 { background: var(--esi-4); }
 .esi-result-square.esi-5 { background: var(--esi-5); }
 
-/* Clean Tables */
 .clean-table {
   width: 100%;
   border-collapse: collapse;
@@ -507,7 +497,6 @@ body {
   background: #f8fafc;
 }
 
-/* Status Badges */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -533,7 +522,6 @@ body {
   color: #64748b;
 }
 
-/* Form Controls matching Patient Intake screenshot */
 .form-grid-2 {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -578,7 +566,6 @@ body {
   color: #94a3b8;
 }
 
-/* Buttons */
 .btn-blue {
   background: var(--primary-blue);
   color: #ffffff;
@@ -620,7 +607,6 @@ body {
   border-color: var(--card-border-hover);
 }
 
-/* Donut & Circular Progress Component */
 .donut-container {
   display: flex;
   flex-direction: column;
@@ -657,7 +643,6 @@ body {
   margin-top: 0.2rem;
 }
 
-/* Filter Chips matching Live Queue screenshot */
 .filter-chip-group {
   display: flex;
   align-items: center;
@@ -688,7 +673,6 @@ body {
   color: #1d4ed8;
 }
 
-/* Tabs on Patient Details */
 .tab-navigation {
   display: flex;
   align-items: center;
@@ -719,7 +703,6 @@ body {
   font-weight: 600;
 }
 
-/* Factor importance bars */
 .factor-bar-row {
   display: flex;
   align-items: center;
@@ -743,7 +726,6 @@ body {
   border-radius: 3px;
 }
 
-/* Factor bar label + weight */
 .factor-label {
   width: 120px;
   font-size: 0.78rem;
@@ -764,7 +746,6 @@ body {
   flex-shrink: 0;
 }
 
-/* Vital tiles */
 .vital-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -815,7 +796,6 @@ body {
   text-transform: capitalize;
 }
 
-/* Vitals history rows */
 .vitals-history-row {
   display: flex;
   align-items: center;
@@ -856,7 +836,6 @@ body {
   font-family: var(--font-mono);
 }
 
-/* Feature chips */
 .feature-chip {
   display: inline-flex;
   align-items: center;
@@ -869,7 +848,6 @@ body {
   font-weight: 600;
 }
 
-/* Confidence bar */
 .conf-track {
   height: 8px;
   background: #f1f5f9;
@@ -883,7 +861,6 @@ body {
   transition: width 0.3s ease;
 }
 
-/* Vertical audit timeline */
 .timeline {
   position: relative;
   display: flex;
@@ -940,7 +917,6 @@ body {
   font-family: var(--font-mono);
 }
 
-/* Vitals input validation styling */
 .input-invalid {
   border-color: #ef4444 !important;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
@@ -986,9 +962,6 @@ body {
   }
 }
 
-/* =========================================================
-   Enterprise hospital form controls (modals use these)
-   ========================================================= */
 .form-group { margin-bottom: 1rem; }
 
 .form-label {
@@ -1021,9 +994,6 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
-/* =========================================================
-   Buttons
-   ========================================================= */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1058,9 +1028,6 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 .btn-sm { padding: 0.4rem 0.85rem; font-size: 0.8rem; }
 .btn-lg { padding: 0.8rem 1.5rem; font-size: 1rem; }
 
-/* =========================================================
-   Alert banners
-   ========================================================= */
 .alert-banner {
   display: flex;
   align-items: center;
@@ -1076,9 +1043,6 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 .alert-success { background: var(--esi-4-bg); border: 1px solid var(--esi-4-border); color: #14532d; }
 .alert-info { background: var(--primary-blue-light); border: 1px solid #bfdbfe; color: #1e3a8a; }
 
-/* =========================================================
-   Modals
-   ========================================================= */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1121,9 +1085,6 @@ textarea.form-control { resize: vertical; min-height: 84px; }
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-/* =========================================================
-   Legacy badges (EsiBadge uses these)
-   ========================================================= */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1143,18 +1104,12 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 .badge-esi-4 { background: var(--esi-4); color: #ffffff; }
 .badge-esi-5 { background: var(--esi-5); color: #083344; }
 
-/* =========================================================
-   Spin / pulse utilities
-   ========================================================= */
 .spin-icon { animation: pt-spin 1s linear infinite; }
 @keyframes pt-spin { to { transform: rotate(360deg); } }
 
 .pulse-alert { animation: pt-pulse 1.4s ease-in-out infinite; }
 @keyframes pt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-/* =========================================================
-   Surge Banner (Dashboard, Queue, Alerts, Settings)
-   ========================================================= */
 .surge-banner {
   display: flex;
   align-items: center;
@@ -1192,9 +1147,6 @@ textarea.form-control { resize: vertical; min-height: 84px; }
   animation: pt-pulse 2s ease-in-out infinite;
 }
 
-/* =========================================================
-   Clinical pathway / history / safety badges
-   ========================================================= */
 .pathway-pill,
 .safety-pill,
 .history-pill {
@@ -1225,15 +1177,9 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 .safety-pill.ok { background: var(--esi-4-bg); border-color: var(--esi-4-border); color: #15803d; }
 .safety-pill.muted { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
 
-/* =========================================================
-   Data completeness bar
-   ========================================================= */
 .completeness-bar { height: 6px; border-radius: 3px; background: #f1f5f9; overflow: hidden; min-width: 64px; }
 .completeness-fill { height: 100%; border-radius: 3px; }
 
-/* =========================================================
-   Confidence pill
-   ========================================================= */
 .conf-pill {
   display: inline-flex;
   align-items: center;
@@ -1250,9 +1196,6 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 .conf-pill.low { background: var(--esi-1-bg); color: #b91c1c; }
 .conf-pill.muted { background: #f1f5f9; color: #64748b; }
 
-/* =========================================================
-   Clinical timeline stages (Patient Details)
-   ========================================================= */
 .ct-stage {
   display: flex;
   gap: 1rem;
@@ -1290,15 +1233,11 @@ textarea.form-control { resize: vertical; min-height: 84px; }
 .ct-time { font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); }
 .ct-note { font-size: 0.8rem; color: var(--text-body); margin-top: 0.2rem; }
 
-/* =========================================================
-   Meta grid (small stat tiles)
-   ========================================================= */
 .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem; }
 .meta-tile { background: #f8fafc; border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 0.6rem 0.8rem; }
 .meta-tile .meta-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
 .meta-tile .meta-value { font-size: 0.92rem; font-weight: 800; color: var(--text-title); margin-top: 0.15rem; }
 
-/* Info callout */
 .info-callout {
   display: flex;
   gap: 0.6rem;
@@ -1311,6 +1250,17 @@ textarea.form-control { resize: vertical; min-height: 84px; }
   line-height: 1.5;
 }
 
-/* Small dot legend */
 .dot-legend { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; color: var(--text-muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+

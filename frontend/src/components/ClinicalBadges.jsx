@@ -8,7 +8,6 @@ import {
   VITAL_LABELS,
 } from '../services/clinical';
 
-// Requirement #5: PEDIATRIC / ADULT / GERIATRIC pathways based on age
 export function PathwayBadge({ age, showHint = false }) {
   const pathway = pathwayOf(age);
   const Icon = pathway.key === 'pediatric' ? Baby : pathway.key === 'geriatric' ? PersonStanding : User;
@@ -20,7 +19,6 @@ export function PathwayBadge({ age, showHint = false }) {
   );
 }
 
-// Requirement #6: FIRST-TIME / LIMITED HISTORY / ESTABLISHED
 export function HistoryBadge({ hasHistory, priorVisits, showNote = false }) {
   const h = historyStatus(hasHistory, priorVisits);
   return (
@@ -31,7 +29,6 @@ export function HistoryBadge({ hasHistory, priorVisits, showNote = false }) {
   );
 }
 
-// Requirement #1: confidence level
 export function ConfidencePill({ confidence, threshold = 0.5, showPercent = true }) {
   const c = confidenceLevel(confidence, threshold);
   const toneClass = c.key === 'low' ? 'low' : c.key === 'high' ? 'high' : c.key === 'medium' ? 'medium' : 'muted';
@@ -42,7 +39,6 @@ export function ConfidencePill({ confidence, threshold = 0.5, showPercent = true
   );
 }
 
-// Requirement #1: safety status pill
 export function SafetyPill({ status, showLabel = true }) {
   return (
     <span className={`safety-pill ${status?.tone || 'muted'}`}>
@@ -51,7 +47,6 @@ export function SafetyPill({ status, showLabel = true }) {
   );
 }
 
-// Requirement #6: data completeness of the vitals record
 export function CompletenessBar({ vitals, width = 88 }) {
   const c = vitalsCompleteness(vitals);
   const color = c.level === 'complete' ? '#16a34a' : c.level === 'good' ? '#2563eb' : c.level === 'partial' ? '#d97706' : '#dc2626';

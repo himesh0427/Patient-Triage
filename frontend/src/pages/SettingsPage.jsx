@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { systemApi, triageApi } from '../services/api';
 import TopNav from '../components/TopNav';
 import SurgeBanner from '../components/SurgeBanner';
+import { useAuth } from '../context/AuthContext';
 import {
   ShieldCheck, Radio, Hospital, CheckCircle2, AlertTriangle, Zap,
   Lock, KeyRound, FileText, FlaskConical, UserCog
 } from 'lucide-react';
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [config, setConfig] = useState(null);
   const [threshold, setThreshold] = useState(0.50);
   const [surgeScale, setSurgeScale] = useState(3);
@@ -100,11 +102,10 @@ export default function SettingsPage() {
       <div className="page-container">
         <SurgeBanner active={config?.surge_mode} />
 
-        {/* Role-aware notice (requirement #14) */}
         <div className="info-callout" style={{ marginBottom: '1.25rem' }}>
           <UserCog size={16} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
           <span>
-            Signed in as <strong>Jane Smith, RN — Nurse Supervisor (Administrator)</strong>. Configuration
+            Signed in as <strong>{user?.full_name || 'Staff'} ({user?.role === 'admin' ? 'Clinical Administrator' : 'Staff'})</strong>. Configuration
             and surge controls require administrator role. Clinicians only see read-only settings.
           </span>
         </div>
@@ -123,7 +124,6 @@ export default function SettingsPage() {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Facility Operating Mode */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -169,7 +169,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* AI Confidence Safety Threshold */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -208,7 +207,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Surge Simulation Panel */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -269,7 +267,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Privacy & Security (requirement #14) */}
           <div className="ui-card">
             <div className="ui-card-header">
               <h3 className="ui-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

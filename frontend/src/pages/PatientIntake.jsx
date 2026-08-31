@@ -8,7 +8,7 @@ import { validateAllVitals } from '../services/vitals';
 import {
   Search, UserPlus, UserCheck, AlertTriangle, ShieldCheck,
   Lock, X, Plus, Sparkles, ArrowRight, ArrowLeft, HeartPulse,
-  CheckCircle2, Activity
+  CheckCircle2, Activity, Zap, Check
 } from 'lucide-react';
 
 const generatePatientId = () => `P-${Math.floor(100 + Math.random() * 900)}`;
@@ -17,14 +17,12 @@ const generateVisitId = () => `V-${Math.floor(100 + Math.random() * 900)}`;
 export default function PatientIntake() {
   const navigate = useNavigate();
 
-  // Mode: 'select' (Section 1) | 'returning' (Section 2A) | 'new' (Section 2B) | 'triage_assessment' (Section 3)
-  const [mode, setMode] = useState('new'); // default to 'new' or selection
+  const [mode, setMode] = useState('new');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
 
-  // New Patient Form State
   const [patientId] = useState(generatePatientId());
   const [visitId] = useState(generateVisitId());
   const [fullName, setFullName] = useState('');
@@ -38,7 +36,6 @@ export default function PatientIntake() {
   const [showAddCondition, setShowAddCondition] = useState(false);
   const [hipaaConsent, setHipaaConsent] = useState(false);
 
-  // Triage Assessment Stage (Vitals & Symptoms)
   const [triageStage, setTriageStage] = useState(false);
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [vitals, setVitals] = useState({
@@ -53,10 +50,26 @@ export default function PatientIntake() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Common quick-pick chronic conditions
-  const commonConditions = ['Hypertension', 'Type 2 Diabetes', 'Asthma', 'CAD / Prior MI', 'CKD', 'COPD'];
+  const commonConditions = [
+    'Hypertension',
+    'Type 2 Diabetes',
+    'Asthma',
+    'COPD',
+    'Coronary Artery Disease / Prior MI',
+    'Heart Failure (CHF)',
+    'Chronic Kidney Disease (CKD)',
+    'Stroke / TIA history',
+    'Seizure disorder / Epilepsy',
+    'Cancer',
+    'Liver disease',
+    'Blood / bleeding disorder',
+    'Immunocompromised',
+    'Sickle cell disease',
+    'Pregnancy',
+    'Recent surgery',
+    'Recent hospitalization',
+  ];
 
-  // Handle Search for Returning Patients
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -75,7 +88,6 @@ export default function PatientIntake() {
     }
   };
 
-  // Select a returning patient
   const handleSelectPatient = (p) => {
     setSelectedPatient(p);
     setFullName(p.name);
@@ -85,7 +97,6 @@ export default function PatientIntake() {
     setHipaaConsent(false);
   };
 
-  // Auto-calculate age from DOB
   const handleDobChange = (e) => {
     const val = e.target.value;
     setDob(val);
@@ -98,7 +109,6 @@ export default function PatientIntake() {
     }
   };
 
-  // Medical History chips management
   const addCondition = (condition) => {
     const trimmed = condition.trim();
     if (trimmed && !medicalHistory.includes(trimmed)) {
@@ -112,7 +122,6 @@ export default function PatientIntake() {
     setMedicalHistory(medicalHistory.filter((c) => c !== conditionToRemove));
   };
 
-  // EDGE CASE: Quick Unresponsive / Critical Bypass
   const handleUnresponsiveBypass = async () => {
     if (!window.confirm("Fast-track patient for IMMEDIATE resuscitation (ESI 1)? This bypasses registration forms.")) {
       return;
@@ -135,7 +144,6 @@ export default function PatientIntake() {
     }
   };
 
-  // Proceed from Demographics to Clinical Triage Vitals & Symptoms
   const handleProceedToTriage = (e) => {
     if (e) e.preventDefault();
     if (!hipaaConsent) {
@@ -150,7 +158,6 @@ export default function PatientIntake() {
     setTriageStage(true);
   };
 
-  // Final Submission to LightGBM AI Triage
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
     if (!chiefComplaint.trim()) {
@@ -215,24 +222,83 @@ export default function PatientIntake() {
       />
 
       <div className="page-container">
-        {/* Quick Emergency Red Button at top for Unresponsive Patients */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+        <div
+          style={{
+            marginBottom: '1.25rem',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 'var(--radius-lg)',
+            padding: '0.85rem 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: '#fee2e2',
+                color: '#dc2626',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <HeartPulse size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <strong style={{ fontSize: '0.92rem', color: '#991b1b' }}>
+                  Critical Life Threat / Unresponsive Patient?
+                </strong>
+                <span
+                  style={{
+                    fontSize: '0.66rem',
+                    fontWeight: 800,
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    background: '#dc2626',
+                    color: '#ffffff',
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  FAST-TRACK ESI 1
+                </span>
+              </div>
+              <p style={{ fontSize: '0.78rem', color: '#b91c1c', marginTop: '0.15rem' }}>
+                Bypass intake forms for immediate cardiac arrest, severe trauma, or airway compromise.
+              </p>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleUnresponsiveBypass}
             disabled={loading}
-            className="btn-blue"
+            className="btn"
             style={{
-              background: '#ef4444',
-              borderColor: '#dc2626',
+              background: '#dc2626',
               color: '#ffffff',
-              fontWeight: 800,
-              fontSize: '0.9rem',
-              boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
-              padding: '0.65rem 1.25rem'
+              border: '1px solid #b91c1c',
+              padding: '0.45rem 1rem',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 2px 4px rgba(220, 38, 38, 0.2)',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
             }}
           >
-            🚨 Unresponsive / Critical Patient (Fast-Track ESI 1)
+            <Zap size={14} /> Immediate ESI-1 Bypass
           </button>
         </div>
 
@@ -245,52 +311,12 @@ export default function PatientIntake() {
 
         {!triageStage ? (
           <div className="ui-card">
-            {/* SECTION 1: PATIENT TYPE SELECTION (Two large buttons side by side) */}
             <div style={{ marginBottom: '2rem' }}>
               <label className="form-label-clean" style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
                 Select Registration Type
               </label>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                {/* 🔍 Returning Patient Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('returning');
-                    setSelectedPatient(null);
-                    setError(null);
-                  }}
-                  style={{
-                    padding: '1.5rem 1.25rem',
-                    borderRadius: 'var(--radius-lg)',
-                    border: mode === 'returning' ? '2px solid var(--primary-blue)' : '1px solid var(--card-border)',
-                    background: mode === 'returning' ? '#eff6ff' : '#ffffff',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                    transition: 'all 0.15s ease',
-                    boxShadow: mode === 'returning' ? '0 0 0 3px rgba(29, 78, 216, 0.12)' : 'none'
-                  }}
-                >
-                  <div style={{
-                    width: '46px', height: '46px', borderRadius: '50%',
-                    background: mode === 'returning' ? 'var(--primary-blue)' : '#f1f5f9',
-                    color: mode === 'returning' ? '#ffffff' : 'var(--text-muted)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <Search size={22} />
-                  </div>
-                  <strong style={{ fontSize: '1.05rem', color: mode === 'returning' ? 'var(--primary-blue)' : 'var(--text-title)' }}>
-                    🔍 Returning Patient
-                  </strong>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Lookup historical MRN &amp; prior visit records
-                  </span>
-                </button>
-
-                {/* ➕ New Patient Button */}
                 <button
                   type="button"
                   onClick={() => {
@@ -327,17 +353,52 @@ export default function PatientIntake() {
                     Register a new ER arrival &amp; auto-generate IDs
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('returning');
+                    setSelectedPatient(null);
+                    setError(null);
+                  }}
+                  style={{
+                    padding: '1.5rem 1.25rem',
+                    borderRadius: 'var(--radius-lg)',
+                    border: mode === 'returning' ? '2px solid var(--primary-blue)' : '1px solid var(--card-border)',
+                    background: mode === 'returning' ? '#eff6ff' : '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    transition: 'all 0.15s ease',
+                    boxShadow: mode === 'returning' ? '0 0 0 3px rgba(29, 78, 216, 0.12)' : 'none'
+                  }}
+                >
+                  <div style={{
+                    width: '46px', height: '46px', borderRadius: '50%',
+                    background: mode === 'returning' ? 'var(--primary-blue)' : '#f1f5f9',
+                    color: mode === 'returning' ? '#ffffff' : 'var(--text-muted)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <Search size={22} />
+                  </div>
+                  <strong style={{ fontSize: '1.05rem', color: mode === 'returning' ? 'var(--primary-blue)' : 'var(--text-title)' }}>
+                    🔍 Returning Patient
+                  </strong>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Lookup historical MRN &amp; prior visit records
+                  </span>
+                </button>
               </div>
             </div>
 
-            {/* SECTION 2A: RETURNING PATIENT SEARCH */}
             {mode === 'returning' && (
               <div style={{ borderTop: '1px solid var(--card-border)', paddingTop: '1.5rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-title)', marginBottom: '1rem' }}>
                   Returning Patient Lookup
                 </h3>
 
-                {/* Search Bar */}
                 <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }} />
@@ -355,7 +416,6 @@ export default function PatientIntake() {
                   </button>
                 </form>
 
-                {/* Search Results Area */}
                 {searchPerformed && !selectedPatient && (
                   <div style={{ marginBottom: '1.5rem' }}>
                     {searchResults.length === 0 ? (
@@ -419,7 +479,6 @@ export default function PatientIntake() {
                   </div>
                 )}
 
-                {/* Selected Patient Summary Card */}
                 {selectedPatient && (
                   <div style={{
                     background: '#f8fafc',
@@ -469,7 +528,6 @@ export default function PatientIntake() {
                       </div>
                     </div>
 
-                    {/* Medical History Panel */}
                     <div style={{ marginBottom: '1.25rem' }}>
                       <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
                         Medical History
@@ -485,7 +543,6 @@ export default function PatientIntake() {
                       )}
                     </div>
 
-                    {/* Required Consent Checkbox */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.75rem', background: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)' }}>
                       <input
                         type="checkbox"
@@ -500,7 +557,6 @@ export default function PatientIntake() {
                       </label>
                     </div>
 
-                    {/* Proceed Button */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
                       <button
                         type="button"
@@ -515,14 +571,12 @@ export default function PatientIntake() {
               </div>
             )}
 
-            {/* SECTION 2B: NEW PATIENT REGISTRATION FORM */}
             {mode === 'new' && (
               <form onSubmit={handleProceedToTriage} style={{ borderTop: '1px solid var(--card-border)', paddingTop: '1.5rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-title)', marginBottom: '1.25rem' }}>
                   New Patient Registration
                 </h3>
 
-                {/* Auto-generated IDs (Patient ID & Visit ID) - Read-only, grayed out with lock icon */}
                 <div className="form-grid-2" style={{ marginBottom: '1.25rem' }}>
                   <div className="form-group-clean">
                     <label className="form-label-clean">Patient ID (Auto-Generated)</label>
@@ -555,7 +609,6 @@ export default function PatientIntake() {
                   </div>
                 </div>
 
-                {/* Full Name */}
                 <div className="form-group-clean">
                   <label className="form-label-clean">Full Name <span className="required">*</span></label>
                   <input
@@ -568,7 +621,6 @@ export default function PatientIntake() {
                   />
                 </div>
 
-                {/* Age & Age in months if < 1 */}
                 <div className="form-grid-2">
                   <div className="form-group-clean">
                     <label className="form-label-clean">Age (Years) <span className="required">*</span></label>
@@ -599,7 +651,6 @@ export default function PatientIntake() {
                     </div>
                   )}
 
-                  {/* Gender */}
                   <div className="form-group-clean">
                     <label className="form-label-clean">Gender <span className="required">*</span></label>
                     <select
@@ -614,9 +665,6 @@ export default function PatientIntake() {
                   </div>
                 </div>
 
-
-
-                {/* Known Medical History (if any) with chips */}
                 <div className="form-group-clean" style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                     <label className="form-label-clean" style={{ margin: 0 }}>
@@ -627,7 +675,6 @@ export default function PatientIntake() {
                     </span>
                   </div>
 
-                  {/* Removable chips */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', minHeight: '32px' }}>
                     {medicalHistory.map((condition) => (
                       <span
@@ -660,19 +707,32 @@ export default function PatientIntake() {
                     )}
                   </div>
 
-                  {/* Add Condition Buttons / Input */}
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {commonConditions.map((cond) => (
-                      <button
-                        key={cond}
-                        type="button"
-                        onClick={() => addCondition(cond)}
-                        className="btn-white"
-                        style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem' }}
-                      >
-                        + {cond}
-                      </button>
-                    ))}
+                  <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    {commonConditions.map((cond) => {
+                      const isAdded = medicalHistory.includes(cond);
+                      return (
+                        <button
+                          key={cond}
+                          type="button"
+                          onClick={() => {
+                            if (isAdded) removeCondition(cond);
+                            else addCondition(cond);
+                          }}
+                          className={isAdded ? "btn-blue" : "btn-white"}
+                          style={{
+                            padding: '0.28rem 0.65rem',
+                            fontSize: '0.76rem',
+                            borderRadius: '9999px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            transition: 'all 0.12s ease',
+                          }}
+                        >
+                          {isAdded ? <Check size={12} strokeWidth={3} /> : '+'} {cond}
+                        </button>
+                      );
+                    })}
 
                     {showAddCondition ? (
                       <div style={{ display: 'flex', gap: '0.4rem' }}>
@@ -708,7 +768,6 @@ export default function PatientIntake() {
                   </div>
                 </div>
 
-                {/* Consent Checkbox (Required) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.85rem 1rem', background: '#f8fafc', borderRadius: 'var(--radius-md)', border: '1px solid var(--card-border)', marginBottom: '1.75rem' }}>
                   <input
                     type="checkbox"
@@ -723,7 +782,6 @@ export default function PatientIntake() {
                   </label>
                 </div>
 
-                {/* Action Buttons: [ Cancel ] [ Save & Proceed to Triage → ] */}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid var(--card-border)', paddingTop: '1.25rem' }}>
                   <button
                     type="button"
@@ -743,7 +801,6 @@ export default function PatientIntake() {
             )}
           </div>
         ) : (
-          /* SECTION 3: TRIAGE CLINICAL ASSESSMENT (Vitals & Symptoms) */
           <form onSubmit={handleFinalSubmit} className="ui-card animate-fadeIn">
             {error && (
               <div className="alert-banner alert-danger" style={{ marginBottom: '1.25rem' }}>
@@ -764,7 +821,6 @@ export default function PatientIntake() {
               <span className="status-pill in-room">{visitId}</span>
             </div>
 
-            {/* Chief Complaint */}
             <div className="form-group-clean">
               <label className="form-label-clean">Chief Complaint &amp; Clinical Presentation <span className="required">*</span></label>
               <textarea
@@ -778,7 +834,6 @@ export default function PatientIntake() {
               />
             </div>
 
-            {/* Vital Signs Grid */}
             <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
               <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-title)', marginBottom: '0.85rem' }}>
                 Measured Vital Signs
@@ -794,7 +849,6 @@ export default function PatientIntake() {
               </div>
             </div>
 
-            {/* Back & Submit Buttons */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--card-border)', paddingTop: '1.25rem' }}>
               <button
                 type="button"

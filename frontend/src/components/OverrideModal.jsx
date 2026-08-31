@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
 import { overrideApi } from '../services/api';
-import { AlertTriangle, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, X, Lock } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function OverrideModal({ visitId, currentEsi, patientName, onClose, onSuccess }) {
+  const { user, canAccess } = useAuth();
   const [newEsi, setNewEsi] = useState(currentEsi || 3);
   const [reason, setReason] = useState('');
-  const [nurseId, setNurseId] = useState('RN-042');
+  const [nurseId, setNurseId] = useState(user?.full_name || 'Marcus Vance, BSN, RN');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const canOverride = canAccess('overrides');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canOverride) {
+      setError('Clinical overrides require Charge Nurse or Clinical Administrator authorization.');
+      return;
+    }
     if (!reason.trim()) {
       setError('Please provide a clinical justification for the override.');
       return;
@@ -22,13 +30,14 @@ export default function OverrideModal({ visitId, currentEsi, patientName, onClos
       await overrideApi.overrideEsi(visitId, {
         new_esi: parseInt(newEsi, 10),
         reason: reason.trim(),
-        nurse_id: nurseId.trim() || 'RN-Shift',
+        nurse_id: nurseId.trim() || user?.full_name || 'Charge Nurse',
       });
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.detail || 'Failed to update ESI level. Please try again.');
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'object' ? detail.message : (detail || 'Failed to update ESI level. Please try again.'));
     } finally {
       setLoading(false);
     }
