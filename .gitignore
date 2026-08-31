@@ -39,7 +39,16 @@ MANIFEST
 # Environment variables
 .env
 
-# Data files
+# Database & Data files
 *.csv
-
+*.db
+*.sqlite
+*.sqlite3
 triage.db
+backend/triage.db
+
+# Plan & Notes
+plan.txt
+plan*.txt
+*plan*.txt
+*.plan
