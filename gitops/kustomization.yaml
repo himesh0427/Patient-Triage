@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: patient-triage
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/part-of: patient-triage
+  app.kubernetes.io/managed-by: argocd
+
+resources:
+  - k8s/namespace.yaml
+  - k8s/backend/configmap.yaml
+  - k8s/backend/deployment.yaml
+  - k8s/backend/service.yaml
+  - k8s/frontend/deployment.yaml
+  - k8s/frontend/service.yaml
+  - k8s/ingress.yaml
+  - k8s/hpa.yaml
+  - k8s/pdb.yaml
+  - k8s/fluent-bit/daemonset.yaml
+
+# Image references — the CD pipeline updates these via:
+#   kustomize edit set image backend=ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/patient-triage/backend:sha-<SHA>
+images:
+  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/patient-triage/backend
+    newTag: latest
+  - name: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/patient-triage/frontend
+    newTag: latest

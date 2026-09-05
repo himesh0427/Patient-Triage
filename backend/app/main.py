@@ -5,6 +5,13 @@ from sqlalchemy import func as sqlfunc, text, inspect
 from datetime import datetime
 import json
 
+# Prometheus instrumentation (non-invasive — does not touch triage logic)
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator as _Instrumentator
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
+
 from .services.queue_manager import utcnow, iso_z
 from .database import engine, Base, get_db, SessionLocal
 from .routers import triage, override, patients, hospital_config, auth
@@ -47,6 +54,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Expose /metrics for Prometheus scraping
+if _PROMETHEUS_AVAILABLE:
+    _Instrumentator(
+        should_group_status_codes=False,
+        excluded_handlers=["/metrics", "/healthz"],
+    ).instrument(app).expose(app, endpoint="/metrics", tags=["Observability"])
 
 app.include_router(auth.router)
 app.include_router(triage.router)

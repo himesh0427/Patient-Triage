@@ -1,0 +1,212 @@
+# Triage-specific Prometheus alert rules for PatientTriage.ai
+# These are also embedded in gitops/k8s/monitoring/prometheus-values.yaml.
+# This standalone file is the canonical source of truth.
+#
+# Load into Prometheus:
+#   kubectl apply -f aiops-assistant/alert-rules/triage-alerts.yaml
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: patient-triage-alerts
+  namespace: patient-triage
+  labels:
+    app.kubernetes.io/name: patient-triage
+    app.kubernetes.io/part-of: patient-triage
+    # Required for kube-prometheus-stack to pick up this rule
+    release: kube-prometheus-stack
+
+spec:
+  groups:
+    # ── Triage Domain Alerts ─────────────────────────────────────────────────
+    - name: patient-triage.triage
+      interval: 60s
+      rules:
+
+        # ── Escalation Rate Anomaly ────────────────────────────────────────────
+        # A drop to near-zero during active hours likely means the confidence-
+        # scoring escalation logic silently broke, NOT that patients got healthier.
+        - alert: EscalationRateAnomaly
+          expr: |
+            sum(rate(triage_escalation_total[15m])) == 0
+            AND
+            (hour() >= 6 AND hour() <= 22)
+          for: 20m
+          labels:
+            severity: warning
+            domain: triage
+            team: devops
+          annotations:
+            summary: "Zero confidence-driven escalations in 20+ minutes during active hours"
+            description: >
+              No AUTO_ESCALATE events detected in the last 20 minutes during hospital
+              operating hours (hour={{ (hour()) }}). Prior 24h average escalation rate
+              was non-zero. A healthy ED always has some patients whose confidence score
+              triggers the safety-first severity bump — zero means the logic may have
+              silently failed.
+            runbook: "Query audit_logs WHERE action='AUTO_ESCALATE_SURGE' in last 30min. Check confidence_score distribution in recent /triage/predict responses."
+
+        # ── Override Rate Spike ────────────────────────────────────────────────
+        - alert: OverrideRateSpike
+          expr: |
+            (
+              sum(rate(triage_override_total[5m])) * 3600
+            )
+            >
+            3 * (
+              sum(avg_over_time(rate(triage_override_total[5m])[1h:5m])) * 3600
+            )
+          for: 5m
+          labels:
+            severity: warning
+            domain: triage
+            team: devops
+          annotations:
+            summary: "Clinician override rate is 3× above 1h moving average"
+            description: >
+              Override rate is {{ $value | humanize }}/hr, which is >3× the 1h moving
+              average. This is a model calibration signal — clinicians may be consistently
+              disagreeing with AI recommendations. Check: recent data distribution shifts,
+              model confidence histogram, or UI changes affecting override button visibility.
+            runbook: "Query audit_logs WHERE action='OVERRIDE'. Look at old_value vs new_value to determine escalate vs de-escalate direction."
+
+        # ── Audit Log Write Failure ────────────────────────────────────────────
+        # P1 compliance incident — any non-zero count requires immediate action.
+        - alert: AuditLogWriteFailure
+          expr: increase(triage_audit_write_errors_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+            domain: compliance
+            team: devops
+            priority: P1
+          annotations:
+            summary: "COMPLIANCE P1: Audit log write failure detected"
+            description: >
+              {{ $value }} audit log write failure(s) detected in the last 5 minutes.
+              Every triage recommendation and clinician decision MUST be durably logged
+              for compliance. A gap in the audit trail is an immediate incident, not a
+              warning. Check: SQLite disk space on /data PVC, DB connectivity, and
+              uvicorn error logs.
+            runbook: "kubectl logs -n patient-triage deployment/backend --tail=100 | grep 'audit_write_error'. Check PVC usage: kubectl get pvc -n patient-triage."
+
+        # ── Triage Intake Latency ──────────────────────────────────────────────
+        # POST /triage/predict is on the critical path during patient arrival.
+        - alert: TriageIntakeLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(triage_predict_duration_seconds_bucket[5m])) by (le)
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+            domain: performance
+            team: devops
+          annotations:
+            summary: "Triage intake endpoint p95 latency > 2s"
+            description: >
+              POST /triage/predict p95 latency is {{ $value | humanizeDuration }},
+              above the 2s threshold. This endpoint is on the critical path during
+              patient arrival. Current surge mode status: check triage_surge_mode_active.
+            runbook: "Check backend pod CPU: kubectl top pods -n patient-triage. Check SQLite /data PVC IOPS. Check LightGBM model load time in startup logs."
+
+        # ── Reassessment Latency ───────────────────────────────────────────────
+        # POST /triage/revitals is critical during surge events for deteriorating patients.
+        - alert: ReassessmentLatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(triage_revitals_duration_seconds_bucket[5m])) by (le)
+            ) > 3
+          for: 5m
+          labels:
+            severity: warning
+            domain: performance
+            team: devops
+          annotations:
+            summary: "Reassessment endpoint p95 latency > 3s"
+            description: >
+              POST /triage/revitals p95 latency is {{ $value | humanizeDuration }},
+              above the 3s threshold. This endpoint is used to detect deteriorating
+              patients — slow response during a surge event could delay escalation.
+              Check if surge mode is active: triage_surge_mode_active metric.
+            runbook: "Check queue depth: kubectl exec -n patient-triage deployment/backend -- curl -s localhost:8000/stats | jq .total_active. Check backend pod memory."
+
+        # ── Low Confidence Volume High ─────────────────────────────────────────
+        - alert: LowConfidenceVolumeHigh
+          expr: |
+            (
+              sum(rate(triage_low_confidence_total[15m]))
+              /
+              sum(rate(triage_predictions_total[15m]))
+            ) > 0.4
+          for: 10m
+          labels:
+            severity: warning
+            domain: triage
+            team: devops
+          annotations:
+            summary: "More than 40% of triage predictions are below confidence threshold"
+            description: >
+              {{ $value | humanizePercentage }} of recent predictions are below the
+              confidence threshold (requires mandatory clinician review). This may
+              indicate unusual patient case mix, possible model input data issues,
+              or a need to recalibrate the confidence threshold.
+            runbook: "Check /config endpoint for current confidence_threshold. Review recent prediction inputs for data quality issues."
+
+    # ── Infrastructure Alerts ────────────────────────────────────────────────
+    - name: patient-triage.infra
+      rules:
+
+        # ── Backend CrashLoop ──────────────────────────────────────────────────
+        - alert: BackendPodCrashLoop
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace="patient-triage",
+              container="backend"
+            }[15m]) > 2
+          for: 5m
+          labels:
+            severity: critical
+            domain: infra
+            team: devops
+          annotations:
+            summary: "Backend pod is crash-looping ({{ $labels.pod }})"
+            description: >
+              Pod {{ $labels.pod }} has restarted {{ $value }} times in 15 minutes.
+              The triage API is unavailable or degraded.
+            runbook: "kubectl logs -n patient-triage {{ $labels.pod }} --previous. kubectl describe pod -n patient-triage {{ $labels.pod }}."
+
+        # ── EKS Node Memory Pressure ───────────────────────────────────────────
+        - alert: EKSNodeMemoryPressure
+          expr: |
+            (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+            domain: infra
+            team: devops
+          annotations:
+            summary: "EKS node memory utilization > 85% ({{ $labels.instance }})"
+            description: >
+              Node {{ $labels.instance }} memory utilization is
+              {{ $value | humanizePercentage }}. During a surge event, LightGBM
+              model scoring and SQLite operations may be memory-constrained.
+            runbook: "kubectl top nodes. Consider scaling the node group or evicting non-critical workloads."
+
+        # ── PVC Disk Usage High ────────────────────────────────────────────────
+        - alert: SQLitePVCDiskHigh
+          expr: |
+            (kubelet_volume_stats_used_bytes{namespace="patient-triage", persistentvolumeclaim="backend-sqlite-pvc"}
+            /
+            kubelet_volume_stats_capacity_bytes{namespace="patient-triage", persistentvolumeclaim="backend-sqlite-pvc"}) > 0.80
+          for: 5m
+          labels:
+            severity: warning
+            domain: infra
+            team: devops
+          annotations:
+            summary: "SQLite PVC disk usage > 80%"
+            description: >
+              The SQLite data volume is {{ $value | humanizePercentage }} full.
+              If it fills completely, audit log writes will fail (P1 compliance incident).
+            runbook: "kubectl exec -n patient-triage deployment/backend -- du -sh /data/. Consider expanding the PVC or archiving old visit data."

@@ -1,0 +1,87 @@
+# PatientTriage.ai — Docker Compose (local dev parity)
+#
+# Usage:
+#   docker compose up --build          # start both services
+#   docker compose up --build backend  # backend only
+#   docker compose logs -f backend     # tail logs
+#   docker compose down -v             # stop + remove volumes
+
+version: "3.9"
+
+services:
+  # ── Backend: FastAPI + LightGBM ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: patient-triage/backend:local
+    container_name: triage-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # SQLite data directory — persists across restarts
+      - triage-data:/data
+      # Hot-reload: mount source for dev iteration (remove in prod)
+      # - ./backend/app:/app/app
+    environment:
+      DATABASE_URL: "sqlite:////data/triage.db"
+      MODEL_PATH: "/app/model/esi_triage_best_weight7.txt"
+      # Override with actual values in .env or environment
+      PYTHONUNBUFFERED: "1"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    networks:
+      - triage-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "com.patienttriage.service=backend"
+      - "com.patienttriage.role=api"
+
+  # ── Frontend: React → Nginx ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Points the frontend at the backend via the Docker network name
+        VITE_API_BASE_URL: "http://localhost:8000"
+    image: patient-triage/frontend:local
+    container_name: triage-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - triage-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.patienttriage.service=frontend"
+      - "com.patienttriage.role=ui"
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  triage-net:
+    driver: bridge
+    labels:
+      - "com.patienttriage.network=main"
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  triage-data:
+    driver: local
+    labels:
+      - "com.patienttriage.data=sqlite"

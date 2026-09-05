@@ -1,0 +1,111 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "PatientTriage Prometheus Alerts",
+    "description": "Action group for querying Prometheus alert state and metric values. READ-ONLY.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/get-active-alerts": {
+      "post": {
+        "operationId": "get_active_alerts",
+        "summary": "Get currently firing Prometheus alerts",
+        "description": "Queries the Prometheus /api/v1/alerts endpoint and returns all FIRING alerts relevant to patient-triage namespace.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "severity_filter": {
+                    "type": "string",
+                    "enum": ["all", "critical", "warning"],
+                    "default": "all"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Active Prometheus alerts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total_firing": {"type": "integer"},
+                    "critical_count": {"type": "integer"},
+                    "warning_count": {"type": "integer"},
+                    "alerts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {"type": "string"},
+                          "severity": {"type": "string"},
+                          "state": {"type": "string"},
+                          "summary": {"type": "string"},
+                          "description": {"type": "string"},
+                          "firing_since": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/get-metric-value": {
+      "post": {
+        "operationId": "get_metric_value",
+        "summary": "Get the current value of a Prometheus metric",
+        "description": "Queries Prometheus for the current value of a named metric. Useful for spot-checking gauge values like triage_active_queue_size.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["metric_name"],
+                "properties": {
+                  "metric_name": {
+                    "type": "string",
+                    "description": "Prometheus metric name (e.g. triage_active_queue_size, triage_surge_mode_active)"
+                  },
+                  "label_filters": {
+                    "type": "string",
+                    "description": "Optional PromQL label filter (e.g. '{esi_level=\"1\"}')"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metric value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "metric_name": {"type": "string"},
+                    "value": {"type": "number"},
+                    "labels": {"type": "object"},
+                    "timestamp": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

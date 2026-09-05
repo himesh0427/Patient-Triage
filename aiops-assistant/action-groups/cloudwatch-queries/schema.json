@@ -1,0 +1,210 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "PatientTriage CloudWatch Queries",
+    "description": "Action group for querying CloudWatch Logs Insights and CloudWatch Metrics for triage-specific operational signals. READ-ONLY. No mutations.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/query-escalation-rate": {
+      "post": {
+        "operationId": "query_escalation_rate",
+        "summary": "Query the rate of confidence-driven escalation events",
+        "description": "Runs a CloudWatch Logs Insights query against /patient-triage/backend to count AUTO_ESCALATE_SURGE audit events in the specified time window. A drop to zero during active hours may indicate the escalation logic silently broke.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lookback_minutes": {
+                    "type": "integer",
+                    "description": "Number of minutes to look back from now.",
+                    "default": 30,
+                    "minimum": 5,
+                    "maximum": 1440
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Escalation rate data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "escalation_count": {"type": "integer"},
+                    "window_minutes": {"type": "integer"},
+                    "events": {"type": "array", "items": {"type": "object"}},
+                    "prior_24h_average": {"type": "number"},
+                    "anomaly_detected": {"type": "boolean"},
+                    "anomaly_reason": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query-override-rate": {
+      "post": {
+        "operationId": "query_override_rate",
+        "summary": "Query the rate of clinician override events",
+        "description": "Counts OVERRIDE audit events and analyses direction (escalating vs de-escalating). A spike vs. baseline may indicate AI miscalibration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lookback_minutes": {
+                    "type": "integer",
+                    "default": 30,
+                    "minimum": 5
+                  },
+                  "baseline_hours": {
+                    "type": "integer",
+                    "description": "Hours of historical data to use as baseline for comparison.",
+                    "default": 24
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Override rate data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "override_count": {"type": "integer"},
+                    "override_escalations": {"type": "integer"},
+                    "override_deescalations": {"type": "integer"},
+                    "baseline_rate_per_hour": {"type": "number"},
+                    "current_rate_per_hour": {"type": "number"},
+                    "rate_multiplier": {"type": "number"},
+                    "anomaly_detected": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query-audit-failures": {
+      "post": {
+        "operationId": "query_audit_failures",
+        "summary": "Query for audit log write failures",
+        "description": "Scans CloudWatch Logs for audit_write_error entries. Any non-zero result is a P1 compliance incident.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lookback_minutes": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Audit failure data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "failure_count": {"type": "integer"},
+                    "first_occurrence": {"type": "string", "format": "date-time"},
+                    "last_occurrence": {"type": "string", "format": "date-time"},
+                    "sample_error": {"type": "string"},
+                    "is_p1_incident": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/query-api-latency": {
+      "post": {
+        "operationId": "query_api_latency",
+        "summary": "Query p50/p95/p99 latency for critical triage endpoints",
+        "description": "Queries CloudWatch Metrics for HTTP request latency on /triage/predict (intake) and /triage/revitals (reassessment). These are on the critical path during live triage decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lookback_minutes": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Latency statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "triage_predict": {
+                      "type": "object",
+                      "properties": {
+                        "p50_ms": {"type": "number"},
+                        "p95_ms": {"type": "number"},
+                        "p99_ms": {"type": "number"},
+                        "request_count": {"type": "integer"},
+                        "above_threshold": {"type": "boolean"},
+                        "threshold_ms": {"type": "integer", "default": 2000}
+                      }
+                    },
+                    "triage_revitals": {
+                      "type": "object",
+                      "properties": {
+                        "p50_ms": {"type": "number"},
+                        "p95_ms": {"type": "number"},
+                        "p99_ms": {"type": "number"},
+                        "request_count": {"type": "integer"},
+                        "above_threshold": {"type": "boolean"},
+                        "threshold_ms": {"type": "integer", "default": 3000}
+                      }
+                    },
+                    "surge_mode_active": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

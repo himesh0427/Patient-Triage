@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: patient-triage
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: patient-triage
+data:
+  # These are non-sensitive defaults; override in the deployment env section
+  # or via a Secret for anything confidential.
+  HOSPITAL_TYPE: "URBAN"
+  CONFIDENCE_THRESHOLD: "0.50"
+  MODEL_PATH: "/app/model/esi_triage_best_weight7.txt"
+  PYTHONUNBUFFERED: "1"
+  # Log level for uvicorn
+  LOG_LEVEL: "info"

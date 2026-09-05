@@ -52,3 +52,42 @@ plan.txt
 plan*.txt
 *plan*.txt
 *.plan
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+*.lock.hcl
+.terraform.lock.hcl
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+
+# Node / Frontend build
+node_modules/
+dist/
+.vite/
+*.local
+
+# Docker
+.dockerignore
+
+# Secrets / environment
+**/.env
+**/.env.*
+!**/.env.example
+.envrc
+
+# AWS / credentials
+.aws/credentials
+*.pem
+
+# CI artifacts
+coverage/
+.nyc_output/
+htmlcov/
+.pytest_cache/
+*.egg-info/

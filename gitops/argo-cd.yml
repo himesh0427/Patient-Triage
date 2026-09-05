@@ -1,0 +1,74 @@
+# ArgoCD Application manifest for PatientTriage.ai
+#
+# Apply this AFTER ArgoCD is installed:
+#   kubectl apply -n argocd -f gitops/argo-cd.yml
+#
+# Install ArgoCD:
+#   kubectl create namespace argocd
+#   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+#
+# SAFE EXECUTION MODE: Do NOT run kubectl apply on this file without
+# confirming with the user first. Applying creates a live ArgoCD sync.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: patient-triage
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: patient-triage
+    app.kubernetes.io/managed-by: argocd
+  # Cascade delete: deleting this ArgoCD App deletes all k8s resources.
+  # finalizers:
+  #   - resources-finalizer.argocd.argoproj.io
+  # (Commented out intentionally — prevents accidental cascade delete)
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: "devops-alerts"
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: "devops-alerts"
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: "devops-alerts"
+
+spec:
+  project: default
+
+  source:
+    # Update repoURL to your actual GitHub repo URL
+    repoURL: https://github.com/YOUR_GITHUB_ORG/Patient-Triage.git
+    targetRevision: main
+    path: gitops
+
+    # Kustomize plugin
+    kustomize:
+      version: v5.3.0
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: patient-triage
+
+  syncPolicy:
+    automated:
+      prune: true       # Remove k8s resources deleted from the repo
+      selfHeal: true    # Re-sync if cluster state drifts from git
+      allowEmpty: false
+
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Don't sync the Prometheus Helm values (managed separately via Helm)
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # HPA manages this
+
+  revisionHistoryLimit: 5

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: patient-triage
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: patient-triage
+  annotations:
+    # ServiceMonitor in kube-prometheus-stack will scrape /metrics via this port
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP

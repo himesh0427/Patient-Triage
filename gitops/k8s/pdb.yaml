@@ -1,0 +1,31 @@
+# ── Backend PDB ───────────────────────────────────────────────────────────────
+# Ensures at least 1 backend pod is available during node drains,
+# cluster upgrades, or voluntary disruptions.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: patient-triage
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: patient-triage
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+---
+# ── Frontend PDB ──────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: patient-triage
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: patient-triage
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend

@@ -1,0 +1,145 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: patient-triage-ingress
+  namespace: patient-triage
+  labels:
+    app.kubernetes.io/name: patient-triage
+    app.kubernetes.io/part-of: patient-triage
+  annotations:
+    # ── AWS ALB Controller ──────────────────────────────────────────────────
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    # Redirect HTTP → HTTPS
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+
+    # ACM certificate ARN — replace with your actual cert ARN
+    # alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERT_ID"
+
+    # Health checks
+    alb.ingress.kubernetes.io/healthcheck-path: "/"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "10"
+    alb.ingress.kubernetes.io/success-codes: "200"
+
+    # Idle timeout (FastAPI long-running requests)
+    alb.ingress.kubernetes.io/load-balancer-attributes: "idle_timeout.timeout_seconds=60"
+
+    # WAF association (optional — uncomment after creating WAF WebACL)
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:us-east-1:ACCOUNT_ID:regional/webacl/NAME/ID"
+
+    # Tags applied to the ALB
+    alb.ingress.kubernetes.io/tags: "Project=patient-triage,Environment=dev,ManagedBy=terraform"
+
+spec:
+  rules:
+    - http:
+        paths:
+          # API routes → backend service
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          # Direct FastAPI paths (no /api prefix — backend uses /triage, /patients etc.)
+          - path: /triage
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /patients
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /override
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /stats
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /alerts
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /audit
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /config
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /reports
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          # All other paths → frontend (SPA)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
